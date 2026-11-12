@@ -1,0 +1,12 @@
+{% from "_icons.html" import icon %}
+<a class="back-link" href="/transactions?tx={{ tx.id }}">{{ icon("back") }}<span>Back</span></a>
+<h2 class="pane-title">Edit entry</h2>
+
+<form class="form" method="post" action="/transactions/{{ tx.id }}/edit" novalidate>
+  {% include "_form.html" %}
+  <div class="actions actions-sticky">
+    <button class="btn btn-primary btn-block" type="submit">Save</button>
+    <a class="btn btn-outline" href="/transactions?tx={{ tx.id }}">Cancel</a>
+    <a class="btn btn-danger" href="/transactions/{{ tx.id }}/delete">Delete</a>
+  </div>
+</form>

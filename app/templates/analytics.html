@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% set active = "analytics" %}
+{% block title %}Analytics{% endblock %}
+{% from "_icons.html" import icon %}
+
+{# 12 month columns drawn as plain boxes. With plan=True the plan is a wide pale "shadow" behind each column.
+   The amount sits on top of each column (short form: 1.2k). #}
+{% macro months(c, plan, label) %}
+  <div class="vbars vbars-months" role="img" aria-label="{{ label }}">
+    {% for col in c.cols %}
+      <div class="vcol{% if col.selected %} vcol-sel{% endif %}" title="{{ col.name }}: {{ col.value|plain }}{% if plan and col.plan %} (plan {{ col.plan|plain }}){% endif %}">
+        <span class="vc-plot">
+          {% if plan and col.plan_h %}<span class="vc-plan" style="height: {{ col.plan_h }}%"></span>{% endif %}
+          {% if col.bar %}<span class="vc-bar" style="height: {{ col.bar }}%"><span class="vc-lab">{{ col.label }}</span></span>{% endif %}
+        </span>
+        <span class="vc-name">{{ col.name }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{# This period against the previous one, with an arrow and words: never only a colour. #}
+{% macro change(d, code, good_when_up, prev_name, running) %}
+  <div class="an-change">
+    <p class="stat-value" data-fit>{{ d.now|money(code) }}</p>
+    {% if d.before or d.now %}
+      <p class="an-delta {{ 'up' if d.diff > 0 else 'down' if d.diff < 0 else '' }} {% if d.diff != 0 %}{{ 'good' if (d.diff > 0) == good_when_up else 'bad' }}{% endif %}">
+        {% if d.diff > 0 %}▲ {{ d.diff|money(code) }}{% if d.pct is not none %} · +{{ d.pct }}%{% endif %} more
+        {% elif d.diff < 0 %}▼ {{ (-d.diff)|money(code) }}{% if d.pct is not none %} · {{ d.pct }}%{% endif %} less
+        {% else %}= same{% endif %}
+      </p>
+      <p class="muted an-before">{{ ("vs the same days of " if prev_name == "last month" else "vs the same period of ") + prev_name if running else "vs " + prev_name }}: {{ d.before|money(code) }}{% if d.before_full is not none %} · {{ prev_name }} in full: {{ d.before_full|money(code) }}{% endif %}</p>
+    {% else %}
+      <p class="muted an-before">Nothing yet.</p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+  <header class="month-nav">
+    {% if prev_href %}<a class="round-link" href="{{ prev_href }}" aria-label="Previous">{{ icon("back") }}</a>{% else %}<span class="round-link round-link-off"></span>{% endif %}
+    <h1>{{ label }}</h1>
+    {% if next_href %}<a class="round-link round-next" href="{{ next_href }}" aria-label="Next">{{ icon("next") }}</a>{% else %}<span class="round-link round-link-off round-next" aria-hidden="true"></span>{% endif %}
+  </header>
+
+  <div class="year-controls">
+    <div class="seg seg-static" role="group" aria-label="Period">
+      <a href="{{ month_href }}" {% if period == "month" %}aria-current="page"{% endif %}>Month</a>
+      <a href="{{ year_href }}" {% if period == "year" %}aria-current="page"{% endif %}>Year</a>
+    </div>
+    <div class="seg seg-cur" role="group" aria-label="Currency">
+      {% for view in views %}
+        <button type="button" data-cur-choice="{{ view.code }}" aria-pressed="false" aria-label="{{ 'Hryvnias' if view.code == 'UAH' else 'Euros' }}">{{ view.symbol }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% for view in views %}
+    {% set d = view.data %}
+    {% set code = view.code %}
+    {% set prev_name = ("last month" if period == "month" else "last year") %}
+    {% set running = d.dynamics.running %}
+    <div class="cur-view" data-cur="{{ code }}">
+
+      {# ---- Forecast: only for the running month ---- #}
+      {% if d.forecast %}
+        {% set f = d.forecast %}
+        {% set c = f.chart %}
+        <section class="card an-card fc" aria-label="Forecast to the end of the month">
+          <h2 class="label">Forecast to the end of the month</h2>
+          <div class="fc-body">
+            <div class="fc-top">
+              <p class="stat-value" data-fit>{{ f.projected|money(code) }}</p>
+              {% if f.budget %}
+                {% set b = f.budget %}
+                <p class="cat-state s-{{ b.state }}">
+                  {% if b.state == "over" %}✗ Over the plan by {{ (-b.left)|money(code) }}
+                  {% elif b.state == "close" %}! Close to the plan
+                  {% else %}✓ Within the plan{% endif %}
+                </p>
+              {% else %}
+                <p class="muted fc-small">No {{ view.symbol }} plan yet · <a href="/year">Set the plan</a></p>
+              {% endif %}
+            </div>
+            <svg class="fc-chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="Spending so far this month, the forecast to the end of the month{% if f.budget %} and the limit{% endif %}">
+              <line class="chart-axis" x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ c.base }}" y2="{{ c.base }}"/>
+              {% if c.limit_y is not none %}
+                <line class="fc-limit" x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ c.limit_y }}" y2="{{ c.limit_y }}"/>
+                <text class="fc-text" x="{{ c.right }}" y="{{ c.limit_y - 4 }}" text-anchor="end">Plan {{ f.budget.limit|compact }}</text>
+              {% endif %}
+              <line class="fc-proj" x1="{{ c.now.x }}" y1="{{ c.now.y }}" x2="{{ c.end.x }}" y2="{{ c.end.y }}"/>
+              <polyline class="fc-fact" points="{{ c.fact }}"/>
+              <circle class="fc-end" cx="{{ c.end.x }}" cy="{{ c.end.y }}" r="3.5"/>
+              <circle class="fc-now" cx="{{ c.now.x }}" cy="{{ c.now.y }}" r="5"/>
+              {% for tick in c.ticks %}
+                <text class="chart-letter{% if tick.today %} chart-letter-sel{% endif %}" x="{{ tick.x }}" y="{{ c.label_y }}" text-anchor="middle">{{ tick.label }}</text>
+              {% endfor %}
+            </svg>
+          </div>
+          <p class="an-key fc-key"><i class="key-line"></i> Spent so far <i class="key-dash"></i> Forecast <span class="muted">· Fixed counted as is</span></p>
+        </section>
+      {% endif %}
+
+      {# ---- 1. Where the money goes: three columns; tap one to open its categories ---- #}
+      <section class="card an-card wm" aria-label="Where the money goes">
+        <h2 class="label">Where the money goes</h2>
+        {% if d.where.total %}
+          <p class="stat-value" data-fit>{{ d.where.total|money(code) }}</p>
+          <div class="vbars vbars-groups" role="group" aria-label="Essentials, Fixed and Fun">
+            {% for g in d.where.groups %}
+              <button type="button" class="vcol g-{{ g.key }}" data-wm-group="{{ g.key }}" aria-pressed="false"{% if not g.total %} disabled{% endif %}>
+                <span class="vc-plot">
+                  {% if g.h %}<span class="vc-bar" style="height: {{ g.h }}%"><span class="vc-lab"><b>{{ g.pct }}</b><span>{{ g.total|plain }}</span></span></span>{% endif %}
+                </span>
+                <span class="vc-name">{{ g.label }}</span>
+              </button>
+            {% endfor %}
+          </div>
+          {% for g in d.where.groups if g.total %}
+            <div class="wm-detail g-{{ g.key }}" data-wm-detail="{{ g.key }}">
+              <div class="wm-head">
+                <h3 class="label">{{ g.label }} · {{ g.pct }} of expenses</h3>
+                <button type="button" class="wm-back" data-wm-back>← back</button>
+              </div>
+              <div class="vbars vbars-cats" role="group" aria-label="{{ g.label }} categories">
+                {% for c in g.cats %}
+                  <div class="vcol">
+                    <span class="vc-plot"><span class="vc-bar" style="height: {{ c.h }}%"><span class="vc-lab"><b>{{ c.pct }}</b><span>{{ c.total|compact }}</span></span></span></span>
+                    <span class="vc-name">{{ c.name }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="muted">No {{ view.symbol }} expenses in {{ label }} yet.</p>
+        {% endif %}
+      </section>
+
+      {# ---- 2. Dynamics ---- #}
+      <section class="an-pair" aria-label="Change">
+        <div class="card an-card">
+          <h2 class="label">Expenses · {{ "this month" if period == "month" else "this year" }}{% if running %} so far{% endif %}</h2>
+          {{ change(d.dynamics.expense, code, false, prev_name, running) }}
+        </div>
+        <div class="card an-card">
+          <h2 class="label">Income · {{ "this month" if period == "month" else "this year" }}{% if running %} so far{% endif %}</h2>
+          {{ change(d.dynamics.income, code, true, prev_name, running) }}
+        </div>
+      </section>
+
+      <section class="an-pair" aria-label="Trend by month">
+        <div class="card an-card">
+          <h2 class="label">Expenses by month, {{ selected_year }}</h2>
+          {{ months(d.trend.expense, false, "Expenses by month in " ~ selected_year) }}
+        </div>
+        <div class="card an-card">
+          <h2 class="label">Income by month, {{ selected_year }}</h2>
+          {{ months(d.trend.income, false, "Income by month in " ~ selected_year) }}
+        </div>
+      </section>
+
+      {# ---- 3. Plan against reality ---- #}
+      <section class="card an-card pa" data-kind="expense" aria-label="Plan against reality">
+        <div class="card-head an-head">
+          <h2 class="label">Plan ↔ actual, {{ selected_year }}</h2>
+          <div class="seg" role="group" aria-label="Kind">
+            <button type="button" data-pa-choice="expense" aria-pressed="true">Expenses</button>
+            <button type="button" data-pa-choice="income" aria-pressed="false">Income</button>
+          </div>
+        </div>
+        {% for kind, text in [("expense", "Expenses"), ("income", "Income")] %}
+          <div class="pa-{{ kind }}">
+            {% if kind == "income" %}<p class="label an-kind">Income</p>{% else %}<p class="label an-kind">Expenses</p>{% endif %}
+            {{ months(d.versus[kind], true, text ~ ": plan against actual by month in " ~ selected_year) }}
+            {% if not d.versus[kind].has_plan %}<p class="muted">No plan yet. <a href="/year?year={{ selected_year }}">Fill the year plan</a></p>{% endif %}
+          </div>
+        {% endfor %}
+        <p class="an-key"><i class="key-actual"></i> Actual <i class="key-plan"></i> Plan</p>
+      </section>
+    </div>
+  {% endfor %}
+{% endblock %}

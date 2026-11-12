@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% set active = "year" %}
+{% block title %}Year {{ year }}{% endblock %}
+{% from "_icons.html" import icon %}
+
+{# ✓ / ! / ✗ next to the number, so the state is never only a colour. #}
+{% macro diff_cell(c) %}
+  <span class="c-diff{% if c.state %} s-{{ c.state }}{% endif %}">{% if c.state %}{{ {"ok": "✓", "close": "!", "over": "✗"}[c.state] }} {% endif %}{{ c.diff|plain }}</span>
+{% endmacro %}
+
+{% macro read_cell(c) %}
+  <span class="c-plan">{{ c.plan|plain }}</span>
+  <span class="c-actual">{{ (c.actual or None)|plain }}</span>
+  {{ diff_cell(c) }}
+{% endmacro %}
+
+{% block content %}
+  <header class="month-nav">
+    {% if prev_year %}<a class="round-link" href="/year?year={{ prev_year }}" aria-label="Previous year">{{ icon("back") }}</a>{% else %}<span class="round-link round-link-off"></span>{% endif %}
+    <h1>{{ year }}</h1>
+    {% if next_year %}<a class="round-link round-next" href="/year?year={{ next_year }}" aria-label="Next year">{{ icon("next") }}</a>{% endif %}
+  </header>
+
+  <p class="muted hint">The plan of an expense category is also its limit for that month: Home shows how much of it is left.</p>
+
+  {% if saved %}<p class="notice" role="status">✓ Plan saved.</p>{% endif %}
+  {% if copied %}<p class="notice" role="status">✓ Copied {{ copied }} amounts from {{ year - 1 }}.</p>{% endif %}
+  {% if notice %}<p class="notice notice-warn" role="status">{{ notice }}</p>{% endif %}
+  {% if bad %}
+    <div class="error" role="alert">
+      <p>Some amounts are not valid, nothing was saved:</p>
+      <p>{{ bad[:8]|join(" · ") }}{% if bad|length > 8 %} · and {{ bad|length - 8 }} more{% endif %}</p>
+    </div>
+  {% endif %}
+
+  {% if confirm %}
+    <form class="notice notice-warn" method="post" action="{{ confirm.action }}">
+      <span>{{ confirm.text }}</span>
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="confirm" value="1">
+      <span class="actions">
+        <button class="btn btn-danger" type="submit">Replace</button>
+        <a class="btn btn-outline" href="/year?year={{ year }}">Cancel</a>
+      </span>
+    </form>
+  {% endif %}
+
+  <div class="year-controls">
+    <div class="seg" role="group" aria-label="View">
+      {% for value, text in [("plan", "Plan"), ("actual", "Actual"), ("diff", "Difference")] %}
+        <button type="button" data-mode-choice="{{ value }}" aria-pressed="{{ 'true' if value == 'plan' else 'false' }}">{{ text }}</button>
+      {% endfor %}
+    </div>
+    <div class="seg seg-cur" role="group" aria-label="Currency">
+      {% for view in views %}
+        <button type="button" data-cur-choice="{{ view.code }}" aria-pressed="false" aria-label="{{ 'Hryvnias' if view.code == 'UAH' else 'Euros' }}">{{ view.symbol }}</button>
+      {% endfor %}
+    </div>
+    <a class="btn btn-outline" href="/analytics?period=year&year={{ year }}">Analytics</a>
+    {% if not confirm %}
+      <form class="year-copy" method="post" action="/year/copy">
+        <input type="hidden" name="year" value="{{ year }}">
+        <button class="btn btn-outline" type="submit">Copy from {{ year - 1 }}</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <form class="year-form" method="post" action="/year">
+    <input type="hidden" name="year" value="{{ year }}">
+    <div class="yr" data-mode="plan">
+      {% for view in views %}
+        {% set grid = view.grid %}
+        <div class="cur-view" data-cur="{{ view.code }}">
+          <div class="yr-scroll">
+            <table class="yr-table">
+              <caption class="sr-only">Plan and reality for {{ year }} in {{ 'hryvnias' if view.code == 'UAH' else 'euros' }}</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="yr-name">Category</th>
+                  <th scope="col" class="yr-fill" title="One amount for all 12 months">All months</th>
+                  {% for name in month_names %}<th scope="col">{{ name }}</th>{% endfor %}
+                  <th scope="col" class="yr-total">Year</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in grid.rows %}
+                  {% if loop.first or loop.previtem.kind != row.kind %}
+                    <tr class="yr-sep"><th scope="colgroup" colspan="15">{{ "Expenses" if row.kind == "expense" else "Income" }}</th></tr>
+                  {% endif %}
+                  <tr>
+                    <th scope="row" class="yr-name"><span class="yr-tag {% if row.grp %}g-{{ row.grp }}{% endif %}">{{ row.name }}</span></th>
+                    <td class="yr-fill"><input class="cell-input" type="text" inputmode="decimal" autocomplete="off" data-fill placeholder="all" aria-label="{{ row.name }}: one plan amount for all months"></td>
+                    {% for c in row.cells %}
+                      {% set key = cell_key(row.id, loop.index, view.code) %}
+                      <td class="yr-cell">
+                        <input class="cell-input c-plan" type="text" inputmode="decimal" autocomplete="off"
+                               name="{{ key }}" value="{{ values.get(key, '') }}" placeholder="—"
+                               aria-label="{{ row.name }}, {{ month_names[loop.index0] }}, plan in {{ view.symbol }}"
+                               {% if key in errors %}aria-invalid="true"{% endif %}>
+                        <span class="c-actual">{{ (c.actual or None)|plain }}</span>
+                        {{ diff_cell(c) }}
+                      </td>
+                    {% endfor %}
+                    <td class="yr-total">{{ read_cell(row.total) }}</td>
+                  </tr>
+                {% endfor %}
+                {% for label, key in [("Income", "income"), ("Expenses", "expense"), ("Balance", "balance")] %}
+                  {% set t = grid.totals[key] %}
+                  <tr class="yr-sum {% if loop.first %}yr-sum-first{% endif %}">
+                    <th scope="row" class="yr-name">{{ label }}</th>
+                    <td class="yr-fill"></td>
+                    {% for c in t.cells %}<td class="yr-cell">{{ read_cell(c) }}</td>{% endfor %}
+                    <td class="yr-total">{{ read_cell(t.total) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="muted yr-legend">
+      Difference: ✓ on plan · ! within 20% of the plan · ✗ over the plan (expenses) or short of it (income).
+      Months that have not come yet show no difference; unplanned spending counts in the totals. “Year” compares the plan
+      up to this month with what has happened so far.
+    </p>
+    <div class="actions yr-save">
+      <button class="btn btn-primary btn-block" type="submit">Save plan</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}Home{% endblock %}
+{% from "_icons.html" import icon %}
+
+{# The state in words and a sign, never colour alone. #}
+{% macro state_text(line) %}
+  {% if line.state == "over" %}✗ Over by {{ (-line.left)|money(line.currency) }}
+  {% elif line.state == "close" %}! Close · {{ line.left|money(line.currency) }} left
+  {% else %}✓ On plan · {{ line.left|money(line.currency) }} left{% endif %}
+{% endmacro %}
+
+{% macro arc(a) %}
+  <section class="card arc-card" aria-label="Left this month">
+    <p class="arc-spent">spent {{ a.percent }}%</p>
+    <div class="arc-wrap">
+      <svg class="arc" viewBox="0 0 200 104" aria-hidden="true" focusable="false">
+        <path class="arc-track" d="M 8 100 A 92 92 0 0 1 192 100" pathLength="100"/>
+        {% if a.fill > 0 %}
+          <path class="arc-fill s-{{ a.state }}" d="M 8 100 A 92 92 0 0 1 192 100" pathLength="100" stroke-dasharray="{{ a.fill }} 100"/>
+        {% endif %}
+      </svg>
+      <div class="arc-center">
+        <p class="arc-left s-{{ a.state }}" data-fit>{{ a.left|money(a.currency) }}</p>
+        <p class="arc-caption">{{ "over this month" if a.left < 0 else "left this month" }}</p>
+      </div>
+    </div>
+    <p class="arc-ends"><span>0</span><span>{{ a.limit|money(a.currency) }}</span></p>
+    {% if a.unlimited %}
+      <p class="arc-note">+ {{ a.unlimited|money(a.currency) }} spent in categories without a limit</p>
+    {% endif %}
+  </section>
+{% endmacro %}
+
+{% block content %}
+  <header class="month-nav">
+    <a class="round-link" href="/?month={{ prev_month }}" aria-label="Previous month">{{ icon("back") }}</a>
+    <h1>{{ month_label }}</h1>
+    {% if next_month %}
+      <a class="round-link round-next" href="/?month={{ next_month }}" aria-label="Next month">{{ icon("next") }}</a>
+    {% else %}
+      <span class="round-link round-link-off round-next" aria-hidden="true"></span>
+    {% endif %}
+    {# One currency at a time: nothing is converted. The choice is remembered in this browser. #}
+    <div class="cur-switch" role="group" aria-label="Currency">
+      {% for view in views %}
+        <button type="button" data-cur-choice="{{ view.code }}" aria-pressed="false" aria-label="{{ 'Hryvnias' if view.code == 'UAH' else 'Euros' }}">{{ view.symbol }}</button>
+      {% endfor %}
+    </div>
+  </header>
+
+  {% if waiting %}
+    <a class="card sort-card" href="/unsorted">
+      <span><strong>{{ waiting }}</strong> bank {{ "entry" if waiting == 1 else "entries" }} to sort<br><span class="muted hint">not counted until sorted</span></span>
+      <span class="sort-go">Sort {{ icon("next") }}</span>
+    </a>
+  {% endif %}
+
+  {% for view in views %}
+    {% set budget = view.budget %}
+    <div class="cur-view" data-cur="{{ view.code }}">
+      {% if view.all_money is not none %}
+        <section class="card stat stat-hero all-money" aria-label="All money">
+          <h2 class="label">All money</h2>
+          <p class="stat-value" data-fit>{{ view.all_money|money(view.code) }}</p>
+          {% if together %}<p class="muted hint">Together ≈ {{ together|money("UAH") }} at your rate {{ rate_text }}</p>{% endif %}
+        </section>
+      {% elif not start_set and loop.first %}
+        <a class="card sort-card" href="/settings#money"><span>Set how much money you have now</span><span class="sort-go">Set {{ icon("next") }}</span></a>
+      {% endif %}
+      <section class="budget" aria-label="Left this month">
+        {% if budget.arc %}
+          {{ arc(budget.arc) }}
+        {% else %}
+          <div class="card arc-card arc-empty">
+            <p class="muted">No {{ view.symbol }} plan for {{ month_label }} yet.</p>
+            <a class="btn btn-outline" href="/year?year={{ month[:4] }}">Set the plan</a>
+          </div>
+        {% endif %}
+      </section>
+
+      <div class="grid">
+        <section class="card stat stat-hero" aria-label="Balance">
+          <h2 class="label">Balance</h2>
+          <p class="stat-value" data-fit>{{ view.balance|money(view.code) }}</p>
+        </section>
+        <section class="card stat" aria-label="Income">
+          <h2 class="label">Income</h2>
+          <p class="stat-value" data-fit>{{ view.income|money(view.code) }}</p>
+        </section>
+        <section class="card stat" aria-label="Expenses">
+          <h2 class="label">Expenses</h2>
+          <p class="stat-value" data-fit>{{ view.expense|money(view.code) }}</p>
+        </section>
+      </div>
+
+      <div class="grid grid-2">
+        <section class="card stat" aria-label="In jars">
+          <h2 class="label">In jars</h2>
+          <p class="stat-value" data-fit>{{ view.in_jars|money(view.code) }}</p>
+        </section>
+        <section class="card stat" aria-label="Free">
+          <h2 class="label">Free</h2>
+          <p class="stat-value" data-fit>{{ view.free|money(view.code) }}</p>
+        </section>
+      </div>
+      {% if view.sent or view.received %}
+        <div class="grid grid-2">
+          <section class="card stat" aria-label="Sent to people">
+            <h2 class="label">Sent to people</h2>
+            <p class="stat-value" data-fit>{{ view.sent|money(view.code) }}</p>
+          </section>
+          <section class="card stat" aria-label="Received from people">
+            <h2 class="label">Received from people</h2>
+            <p class="stat-value" data-fit>{{ view.received|money(view.code) }}</p>
+          </section>
+        </div>
+      {% endif %}
+
+      <section class="card jars-card" aria-label="Jars">
+        <div class="card-head">
+          <h2 class="label">Jars</h2>
+          <a class="more" href="/jars">{{ "All jars" if view.jars else "Create one" }}</a>
+        </div>
+        {% if view.jars %}
+          <ul class="cat-list">
+            {% for jar in view.jars %}
+              <li class="cat-row">
+                <span class="cat-name">{{ jar.name }}</span>
+                <div class="cat-line">
+                  <span class="cat-nums">{{ jar.balance|money(jar.currency) }}{% if jar.target %} <span class="muted">/ {{ jar.target|money(jar.currency) }}</span>{% endif %}</span>
+                  {% if jar.target %}
+                    <span class="bar s-ok" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ jar.pct }}"><span style="width: {{ jar.pct }}%"></span></span>
+                    <span class="cat-state s-ok">{% if jar.reached %}✓ Goal reached{% else %}{{ jar.pct }}% · {{ jar.left|money(jar.currency) }} to go{% endif %}</span>
+                  {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted jars-empty">No {{ view.symbol }} jars yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="budget" aria-label="Plan by category">
+        <ul class="group-tiles" aria-label="By group">
+          {% for g in budget.groups %}
+            <li class="grp-tile g-{{ g.key }}">
+              <span class="label">{{ g.label }}</span>
+              <span class="grp-nums">
+                <b>{{ g.line.spent|money(view.code) }}</b>{% if g.line.limit %} <span class="muted">/ {{ g.line.limit|money(view.code) }}</span>{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+
+        <section class="card cats" aria-label="Categories">
+          <div class="card-head">
+            <h2 class="label">Categories</h2>
+            <span class="card-links">
+              <a class="more" href="/analytics?month={{ month }}">Analytics</a>
+              <a class="more" href="/year?year={{ month[:4] }}">Edit plan</a>
+            </span>
+          </div>
+          <ul class="cat-list">
+            {% for row in budget.rows %}
+              {% set l = row.line %}
+              <li class="cat-row {% if row.grp %}g-{{ row.grp }}{% endif %}">
+                <span class="cat-name">{{ row.name }}</span>
+                <div class="cat-line">
+                  <span class="cat-nums{% if not l.spent %} muted{% endif %}">{{ l.spent|money(view.code) }}{% if l.limit %} <span class="muted">/ {{ l.limit|money(view.code) }}</span>{% endif %}</span>
+                  {% if l.limit %}
+                    <span class="bar s-{{ l.state }}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ l.pct }}"><span style="width: {{ l.pct }}%"></span></span>
+                    <span class="cat-state s-{{ l.state }}">{{ state_text(l) }}</span>
+                  {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      </section>
+
+      <div class="grid">
+        <section class="card recent" aria-label="Recent">
+          <div class="card-head">
+            <h2 class="label">Recent</h2>
+            <a class="more" href="/transactions">All</a>
+          </div>
+          {% if view.recent %}
+            <ul class="tx-list">
+              {% for tx in view.recent %}
+                <li>
+                  <a class="tx {% if tx.grp %}g-{{ tx.grp }}{% endif %}" href="/transactions?tx={{ tx.id }}">
+                    <span class="tx-main">
+                      <span class="tx-category">{{ tx.title }}</span>
+                      <span class="tx-comment">{{ tx.date|short_date }}{% if tx.comment %} · {{ tx.comment }}{% endif %}</span>
+                    </span>
+                    <span class="tx-amount">{{ "+" if tx.kind == "income" else "−" if tx.kind == "expense" else "" }}{{ tx.amount|money(tx.currency) }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No {{ view.symbol }} entries yet.</p>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+  {% endfor %}
+{% endblock %}

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Stops a commit that would publish personal data (the repo is meant to be public).
+# Install once per clone:  git config core.hooksPath .githooks
+set -u
+fail=0
+
+files=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E -i '(^|/)\.env($|\.)|(^|/)export_|(^|/)data/|\.(db|sqlite3?|csv|xlsx?|gz|log|pem|key)$' \
+  | grep -v -E '(^|/)\.env\.example$')
+if [ -n "$files" ]; then
+  echo "BLOCKED: these files look personal (bank exports, databases, secrets):"
+  echo "$files" | sed 's/^/  /'
+  fail=1
+fi
+
+hits=$(git diff --cached -U0 --diff-filter=ACMR -- . ':!*.png' ':!*.svg' \
+  | grep -E '^\+' | grep -v -E '^\+\+\+' \
+  | grep -E '[0-9]{8,10}:[A-Za-z0-9_-]{35}|[0-9]{6}\*{4,6}[0-9]{4}|\bUA[0-9]{27}\b|[a-z0-9-]+\.[a-z0-9-]+\.ts\.net|(TOKEN|SECRET|PASSWORD)[A-Z_]*[[:space:]]*=[[:space:]]*[A-Za-z0-9:_-]{16,}' \
+  | cut -c1-60)
+if [ -n "$hits" ]; then
+  echo "BLOCKED: the changes contain something that looks like a token, card number, IBAN or private host:"
+  echo "$hits" | sed 's/^/  /'
+  fail=1
+fi
+
+[ "$fail" -eq 0 ] || { echo "Nothing was committed. Remove it (or add it to .gitignore) and try again."; exit 1; }

@@ -1,0 +1,134 @@
+{# Shared by the add and edit panes. #}
+{% macro error(name) %}
+  {% if errors.get(name) %}<p class="error" role="alert">✗ {{ errors[name] }}</p>{% endif %}
+{% endmacro %}
+
+<div class="form-cols">
+<div class="form-left">
+<fieldset class="field">
+  <legend class="sr-only">Type</legend>
+  <div class="picks picks-seg">
+    {% for value, text in [("expense", "Expense"), ("income", "Income"), ("jar", "Jar")] %}
+      <label class="pick">
+        <input type="radio" name="kind" id="kind-{{ value }}" value="{{ value }}" {% if values.get("kind") == value %}checked{% endif %}>
+        <span>{{ text }}</span>
+      </label>
+    {% endfor %}
+  </div>
+  {{ error("kind") }}
+</fieldset>
+
+{% for kind in ["expense", "income"] %}
+  <fieldset class="field cats" data-kind="{{ kind }}">
+    <legend class="sr-only">{{ kind }} category</legend>
+    <div class="picks">
+      {% for category in categories[kind] %}
+        <label class="pick {% if category.grp %}g-{{ category.grp }}{% endif %}">
+          <input type="radio" name="category_id" value="{{ category.id }}" {% if values.get("category_id") == category.id|string %}checked{% endif %}>
+          <span>{{ category.name }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+{% endfor %}
+{{ error("category_id") }}
+
+{# Jar: money into a jar or back out. Not an expense and not income. #}
+<fieldset class="field cats jar-fields" data-kind="jar">
+  <legend class="sr-only">Jar</legend>
+  {% if jars %}
+    <div class="picks">
+      {% for jar in jars %}
+        <label class="pick">
+          <input type="radio" name="jar_id" value="{{ jar.id }}" data-cur="{{ jar.currency }}" {% if values.get("jar_id") == jar.id|string %}checked{% endif %}>
+          <span>{{ jar.name }} · {{ "₴" if jar.currency == "UAH" else "€" }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    {{ error("jar_id") }}
+    <div class="picks picks-seg">
+      {% for value, text in [("in", "Add money"), ("out", "Withdraw")] %}
+        <label class="pick">
+          <input type="radio" name="direction" value="{{ value }}" {% if values.get("direction", "in") == value %}checked{% endif %}>
+          <span>{{ text }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    {{ error("direction") }}
+    <div class="field" data-paid>
+      <label class="label" for="paid">Paid in ₴ (optional)</label>
+      <input class="input" id="paid" name="paid" type="text" inputmode="decimal" autocomplete="off" placeholder="—" value="{{ values.get('paid', '') }}">
+      <p class="muted hint">The hryvnias leave your free ₴; the euros go into the jar.</p>
+      {{ error("paid") }}
+    </div>
+  {% else %}
+    <p class="muted">No jars yet. <a href="/jars/new">Create one</a></p>
+  {% endif %}
+</fieldset>
+</div>
+
+<div class="form-right">
+
+{# The calculator is built by app.js. Without JavaScript the plain box below still works. #}
+<div class="calc" data-calc>
+  <div class="calc-top">
+    <div class="calc-display">
+      <output class="calc-expr" data-expr>0</output>
+      <output class="calc-result" data-result></output>
+    </div>
+    <fieldset class="field">
+      <legend class="sr-only">Currency</legend>
+      <div class="picks picks-nowrap">
+        {% for code, symbol in [("UAH", "₴"), ("EUR", "€")] %}
+          <label class="pick pick-currency">
+            <input type="radio" name="currency" value="{{ code }}" aria-label="{{ code }}" {% if values.get("currency") == code %}checked{% endif %}>
+            <span>{{ symbol }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+  </div>
+
+  <div class="amount-fallback field">
+    <label class="label" for="amount">Amount</label>
+    <input class="input input-amount" id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ values.get('amount', '') }}">
+  </div>
+
+  <p class="error" role="alert" data-calc-error hidden></p>
+  {{ error("amount") }}
+  {{ error("currency") }}
+
+  <div class="keys">
+    <div class="keys-ops">
+      <button class="key key-op" type="button" data-key="+" aria-label="Plus">+</button>
+      <button class="key key-op" type="button" data-key="-" aria-label="Minus">−</button>
+      <button class="key key-op" type="button" data-key="*" aria-label="Times">×</button>
+      <button class="key key-op" type="button" data-key="/" aria-label="Divide">÷</button>
+    </div>
+    <div class="keys-digits">
+      {% for digit in ["7", "8", "9", "4", "5", "6", "1", "2", "3"] %}
+        <button class="key" type="button" data-key="{{ digit }}">{{ digit }}</button>
+      {% endfor %}
+      <button class="key" type="button" data-key=".">.</button>
+      <button class="key" type="button" data-key="0">0</button>
+      <button class="key" type="button" data-key="Backspace" aria-label="Delete last">⌫</button>
+    </div>
+    <button class="key key-eq" type="button" data-key="=" aria-label="Equals">=</button>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="form-meta">
+<div class="field">
+  <label class="label" for="comment">Comment</label>
+  <input class="input" id="comment" name="comment" type="text" maxlength="{{ max_comment }}" autocomplete="off" value="{{ values.get('comment', '') }}">
+  {{ error("comment") }}
+</div>
+
+<div class="field">
+  <label class="label" for="date">Date</label>
+  <input class="input" id="date" name="date" type="date" value="{{ values.get('date', '') }}" {% if use_device_date %}data-device-date{% endif %}>
+  {{ error("date") }}
+</div>
+</div>

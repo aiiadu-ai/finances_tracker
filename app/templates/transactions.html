@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{# "+" is lit only on the real Add screen, not on the list that has the add form beside it. #}
+{% set active = "add" if pane == "add" and view == "detail" else "transactions" %}
+{% block title %}{{ {"add": "New entry", "detail": "Transactions", "edit": "Edit", "delete": "Delete"}[pane] }}{% endblock %}
+{% block content %}
+  <div class="split" data-view="{{ view }}">
+    <section class="list-pane" aria-label="Transactions">
+      <h1>Transactions</h1>
+
+      {% if deleted %}
+        <p class="notice" role="status"><span>✓ Deleted.</span></p>
+      {% endif %}
+
+      {% if days %}
+        <div class="days">
+          {% for day in days %}
+            <section>
+              <h2 class="label">{{ day.label }}</h2>
+              <ul class="card tx-list">
+                {% for item in day["items"] %}
+                  <li>
+                    <a class="tx {% if item.grp %}g-{{ item.grp }}{% endif %}" href="/transactions?tx={{ item.id }}" {% if item.id == selected %}aria-current="true"{% endif %}>
+                      <span class="tx-main">
+                        <span class="tx-category">{{ item.title }}</span>
+                        {% if item.comment %}<span class="tx-comment">{{ item.comment }}</span>{% endif %}
+                      </span>
+                      <span class="tx-amount">{{ "+" if item.kind == "income" else "−" if item.kind == "expense" else "" }}{{ item.amount|money(item.currency) }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </section>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">Nothing here yet.</p>
+      {% endif %}
+    </section>
+
+    <section class="detail-pane">
+      {% include "_pane_" ~ pane ~ ".html" %}
+    </section>
+  </div>
+{% endblock %}

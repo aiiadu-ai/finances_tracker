@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}To sort{% endblock %}
+
+{% block content %}
+  <h1>To sort</h1>
+  {% if saved %}<p class="notice" role="status">✓ Saved.</p>{% endif %}
+  {% if error %}<p class="error" role="alert">✗ {{ error }}</p>{% endif %}
+  <p class="muted hint">Bank entries wait here until you sort them. They are not counted in your balance, income or expenses until then.</p>
+
+  {% if rows %}
+    <ul class="set-list">
+      {% for tx in rows %}
+        <li class="card sort-row">
+          <p class="sort-what"><strong>{{ "+" if tx.kind == "income" else "−" }}{{ tx.amount|money(tx.currency) }}</strong> · {{ tx.comment or "(no description)" }}</p>
+          <p class="muted hint">{{ tx.date|short_date }}</p>
+          <form class="set-form" method="post" action="/unsorted/{{ tx.id }}">
+            <select class="input select" name="category_id" aria-label="Category">
+              <option value="">Choose a category…</option>
+              {% for c in tx.categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+            {% if tx.kind == "expense" and accounts %}
+              <select class="input select" name="account_id" aria-label="Account the money went to">
+                <option value="">If between my accounts: went to…</option>
+                {% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+              </select>
+            {% endif %}
+            {% if tx.comment %}
+              <label class="check"><input type="checkbox" name="remember" value="1"> Remember “{{ tx.comment[:30] }}”</label>
+            {% endif %}
+            <button class="btn btn-primary" type="submit" name="action" value="sort">Save</button>
+            <button class="btn btn-outline" type="submit" name="action" value="people">{{ "Received from people" if tx.kind == "income" else "Sent to people" }}</button>
+            <button class="btn btn-outline" type="submit" name="action" value="accounts">Between my accounts</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <section class="card"><p>✓ Nothing to sort.</p></section>
+  {% endif %}
+{% endblock %}

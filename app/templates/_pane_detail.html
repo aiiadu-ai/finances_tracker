@@ -1,0 +1,16 @@
+{% from "_icons.html" import icon %}
+<a class="back-link" href="/transactions">{{ icon("back") }}<span>Transactions</span></a>
+
+<div class="detail">
+  <p class="label">{{ day }}</p>
+  <p class="data-xl">{{ "+" if tx.kind == "income" else "−" if tx.kind == "expense" else "" }}{{ tx.amount|money(tx.currency) }}</p>
+  <p><span class="cat-tag {% if tx.grp %}g-{{ tx.grp }}{% endif %}">{{ tx.title }}</span></p>
+  {% if tx.paid_uah %}<p class="muted">Paid {{ tx.paid_uah|money("UAH") }}</p>{% endif %}
+  {% if tx.comment %}<p class="detail-comment">{{ tx.comment }}</p>{% endif %}
+  <p class="label">{{ tx.source }}</p>
+</div>
+
+<div class="actions">
+  {% if not (tx.kind == "transfer" and not tx.jar_id) %}<a class="btn btn-outline" href="/transactions/{{ tx.id }}/edit">Edit</a>{% endif %}
+  <a class="btn btn-danger" href="/transactions/{{ tx.id }}/delete">Delete</a>
+</div>

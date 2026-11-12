@@ -1,0 +1,16 @@
+<h2 class="pane-title">New entry</h2>
+
+{% if saved %}
+  <p class="notice" role="status">
+    <span>✓ Saved: {{ saved.title }} · {{ saved.amount|money(saved.currency) }}{% if saved.comment %} · {{ saved.comment }}{% endif %}</span>
+    <a href="/transactions?tx={{ saved.id }}">Open</a>
+  </p>
+  {% if quote %}<p class="quote">“{{ quote }}”</p>{% endif %}
+{% endif %}
+
+<form class="form" method="post" action="/add" novalidate>
+  {% include "_form.html" %}
+  <div class="actions actions-sticky">
+    <button class="btn btn-primary btn-block" type="submit">Save</button>
+  </div>
+</form>

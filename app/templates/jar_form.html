@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% set active = "jars" %}
+{% block title %}{{ "Edit jar" if jar else "New jar" }}{% endblock %}
+{% from "_icons.html" import icon %}
+
+{% macro error(name) %}
+  {% if errors.get(name) %}<p class="error" role="alert">✗ {{ errors[name] }}</p>{% endif %}
+{% endmacro %}
+
+{% block content %}
+  <a class="back-link" href="/jars">{{ icon("back") }}<span>Jars</span></a>
+  <h1>{{ "Edit jar" if jar else "New jar" }}</h1>
+
+  <form class="form settings-form" method="post" action="{{ '/jars/%d/edit' % jar.id if jar else '/jars/new' }}" novalidate>
+    <div class="field">
+      <label class="label" for="name">Name</label>
+      <input class="input" id="name" name="name" type="text" maxlength="{{ max_name }}" autocomplete="off" value="{{ values.name }}">
+      {{ error("name") }}
+    </div>
+
+    <fieldset class="field">
+      <legend class="label">Currency</legend>
+      {% if jar %}
+        <p>{{ "₴ hryvnias" if jar.currency == "UAH" else "€ euros" }} <span class="muted">· can't be changed</span></p>
+      {% else %}
+        <div class="picks picks-nowrap">
+          {% for code, symbol in [("UAH", "₴"), ("EUR", "€")] %}
+            <label class="pick pick-currency">
+              <input type="radio" name="currency" value="{{ code }}" aria-label="{{ code }}" {% if values.currency == code %}checked{% endif %}>
+              <span>{{ symbol }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {{ error("currency") }}
+    </fieldset>
+
+    <div class="field">
+      <label class="label" for="target">Goal (optional)</label>
+      <input class="input" id="target" name="target" type="text" inputmode="decimal" autocomplete="off" placeholder="—" value="{{ values.target }}">
+      {{ error("target") }}
+    </div>
+
+    <div class="field">
+      <label class="label" for="opening">Already in it (opening balance)</label>
+      <input class="input" id="opening" name="opening" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ values.opening }}">
+      <p class="muted hint">Money that is already there. It doesn't change the balance of any month.</p>
+      {{ error("opening") }}
+    </div>
+
+    <div class="field jar-rate" {% if (jar and jar.currency != "EUR") %}hidden{% endif %}>
+      <label class="label" for="rate">My rate, ₴ per € (euro jars)</label>
+      <input class="input" id="rate" name="rate" type="text" inputmode="decimal" autocomplete="off" placeholder="—" value="{{ values.rate }}">
+      <p class="muted hint">Your own safe rate, only for the “≈ in ₴” line. Nothing is converted.</p>
+      {{ error("rate") }}
+    </div>
+
+    <div class="field">
+      <label class="label" for="quote">My quote (why I do this)</label>
+      <input class="input" id="quote" name="quote" type="text" maxlength="{{ max_quote }}" autocomplete="off" value="{{ values.quote }}">
+      <p class="muted hint">Shown after you add money. Empty: a random one from Settings.</p>
+      {{ error("quote") }}
+    </div>
+
+    <div class="field">
+      <label class="check"><input type="checkbox" name="shared" value="1" {% if values.shared %}checked{% endif %}> Shared: visible to your partner</label>
+      <p class="muted hint">Shared jars are the only thing a person you gave access to can see (progress only, no editing).</p>
+    </div>
+
+    <div class="actions actions-sticky">
+      <button class="btn btn-primary btn-block" type="submit">Save</button>
+    </div>
+  </form>
+
+  {% if jar %}
+    <section class="card settings-card" aria-label="Archive or delete">
+      <h2 class="label">Archive or delete</h2>
+      {% if jar.archived %}
+        <form class="actions" method="post" action="/jars/{{ jar.id }}/restore"><button class="btn btn-outline" type="submit">Restore</button></form>
+      {% else %}
+        <p class="muted">Archiving hides the jar from Add and Home. Its history stays.</p>
+        <form class="actions" method="post" action="/jars/{{ jar.id }}/archive"><button class="btn btn-outline" type="submit">Archive</button></form>
+      {% endif %}
+      {% if not jar.moves %}
+        <form class="actions" method="post" action="/jars/{{ jar.id }}/delete"><button class="btn btn-danger" type="submit">✗ Delete jar</button></form>
+      {% else %}
+        <p class="muted">It has {{ jar.moves }} transfer{{ "s" if jar.moves != 1 }}, so it can only be archived.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

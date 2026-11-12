@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% set active = "settings" %}
+{% block title %}Settings{% endblock %}
+
+{% macro category_row(c) %}
+  <li class="set-row {% if c.grp %}g-{{ c.grp }}{% endif %}">
+    <form class="set-form" method="post" action="/settings/categories/{{ c.id }}">
+      <input class="input" name="name" type="text" maxlength="{{ max_category }}" value="{{ c.name }}" aria-label="Name of {{ c.name }}">
+      {% if c.kind == "expense" %}
+        <select class="input select" name="group" aria-label="Group of {{ c.name }}">
+          {% for key, label in groups %}<option value="{{ key }}" {% if c.grp == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      {% endif %}
+      <button class="btn btn-outline" type="submit">Save</button>
+    </form>
+    {% if c.archived %}
+      <form method="post" action="/settings/categories/{{ c.id }}/restore"><button class="btn btn-outline" type="submit">Restore</button></form>
+    {% else %}
+      <form method="post" action="/settings/categories/{{ c.id }}/archive"><button class="btn btn-outline" type="submit">Archive</button></form>
+    {% endif %}
+  </li>
+{% endmacro %}
+
+{% macro target_select(rule=none) %}
+  {% set picked = ("people" if rule.transfer == "people" else ("account:" ~ rule.account_id if rule.account_id else "accounts")) if rule and rule.is_transfer else (rule.category_id|string if rule else "") %}
+  <select class="input select" name="target" aria-label="What the rule does">
+    {% if not rule %}<option value="">Choose…</option>{% endif %}
+    <optgroup label="Expense">{% for c in expense %}<option value="{{ c.id }}" {% if picked == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</optgroup>
+    <optgroup label="Income">{% for c in income %}<option value="{{ c.id }}" {% if picked == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</optgroup>
+    <optgroup label="Transfer">
+      <option value="people" {% if picked == "people" %}selected{% endif %}>Sent to / received from people</option>
+      <option value="accounts" {% if picked == "accounts" %}selected{% endif %}>Between my accounts</option>
+      {% for a in accounts if not a.archived %}<option value="account:{{ a.id }}" {% if picked == "account:" ~ a.id %}selected{% endif %}>To {{ a.name }}</option>{% endfor %}
+    </optgroup>
+  </select>
+{% endmacro %}
+
+{% block content %}
+  <h1>Settings</h1>
+  {% if saved %}<p class="notice" role="status">✓ Saved{{ " " ~ saved if saved not in ("quote", "rule", "account", "money") }}.</p>{% endif %}
+  {% if error %}<p class="error" role="alert">✗ {{ error }}</p>{% endif %}
+
+  {# Tabs: with JavaScript one block is shown at a time; without it every block is on the page and the links scroll. #}
+  <nav class="tabs" aria-label="Settings sections" data-open="{{ tab }}">
+    <a href="#expense" data-tab="expense">Expenses</a>
+    <a href="#income" data-tab="income">Income</a>
+    <a href="#accounts" data-tab="accounts">Accounts</a>
+    <a href="#rules" data-tab="rules">Rules</a>
+    <a href="#quotes" data-tab="quotes">Quotes</a>
+    <a href="#money" data-tab="money">Money</a>
+  </nav>
+
+  <section class="card settings-card" id="expense" data-panel="expense" aria-label="Expense categories">
+    <h2 class="label">Expense categories</h2>
+    <p class="muted hint">Archiving hides a category from Add. Old entries keep it.</p>
+    <ul class="set-list">{% for c in expense %}{{ category_row(c) }}{% endfor %}</ul>
+    <form class="set-form set-add" method="post" action="/settings/categories/add">
+      <input type="hidden" name="kind" value="expense">
+      <input class="input" name="name" type="text" maxlength="{{ max_category }}" placeholder="New expense category" aria-label="New expense category">
+      <select class="input select" name="group" aria-label="Group">
+        {% for key, label in groups %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="card settings-card" id="income" data-panel="income" aria-label="Income categories">
+    <h2 class="label">Income categories</h2>
+    <ul class="set-list">{% for c in income %}{{ category_row(c) }}{% endfor %}</ul>
+    <form class="set-form set-add" method="post" action="/settings/categories/add">
+      <input type="hidden" name="kind" value="income">
+      <input class="input" name="name" type="text" maxlength="{{ max_category }}" placeholder="New income category" aria-label="New income category">
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  {% if archived %}
+    <details class="card settings-card" data-panel="expense">
+      <summary class="label">Archived categories ({{ archived|length }})</summary>
+      <ul class="set-list">{% for c in archived %}{{ category_row(c) }}{% endfor %}</ul>
+    </details>
+  {% endif %}
+
+  <section class="card settings-card" id="accounts" data-panel="accounts" aria-label="My accounts">
+    <h2 class="label">My accounts</h2>
+    <p class="muted hint">Where your money lies. When you mark a bank entry as a transfer between your accounts, you choose one of these as the place the money went to. Monobank cards are added by themselves; you can rename them.</p>
+    {% if accounts %}
+      <ul class="set-list">
+        {% for a in accounts %}
+          <li class="set-row">
+            <form class="set-form" method="post" action="/settings/accounts/{{ a.id }}">
+              <input class="input" name="name" type="text" maxlength="40" value="{{ a.name }}" aria-label="Account name">
+              <button class="btn btn-outline" type="submit">Save</button>
+            </form>
+            {% if a.archived %}
+              <form method="post" action="/settings/accounts/{{ a.id }}/restore"><button class="btn btn-outline" type="submit">Restore</button></form>
+            {% else %}
+              <form method="post" action="/settings/accounts/{{ a.id }}/archive"><button class="btn btn-outline" type="submit">Archive</button></form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <form class="set-form set-add" method="post" action="/settings/accounts/add">
+      <input class="input" name="name" type="text" maxlength="40" placeholder="New account (Agricole, Cash…)" aria-label="New account">
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="card settings-card" id="rules" data-panel="rules" aria-label="Bank rules">
+    <h2 class="label">Bank rules</h2>
+    <p class="muted hint">If a bank description contains this text, the entry gets this category. Transfers (to people, or between your own accounts) are neither income nor expense. Capital letters don't matter.</p>
+    {% if rules %}
+      <ul class="set-list">
+        {% for r in rules %}
+          <li class="set-row">
+            <form class="set-form" method="post" action="/settings/rules/{{ r.id }}">
+              <input class="input" name="pattern" type="text" maxlength="{{ max_pattern }}" value="{{ r.pattern }}" aria-label="Text to look for">
+              {{ target_select(r) }}
+              <button class="btn btn-outline" type="submit">Save</button>
+            </form>
+            <form method="post" action="/settings/rules/{{ r.id }}/delete"><button class="btn btn-danger" type="submit">Delete</button></form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted hint">No rules yet. They appear when you sort a bank entry and choose to remember it.</p>
+    {% endif %}
+    <form class="set-form set-add" method="post" action="/settings/rules/add">
+      <input class="input" name="pattern" type="text" maxlength="{{ max_pattern }}" placeholder="Text in the description" aria-label="Text in the description">
+      {{ target_select() }}
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="card settings-card" id="quotes" data-panel="quotes" aria-label="Quotes">
+    <h2 class="label">Quotes</h2>
+    <p class="muted hint">One of these is shown after you add money to a jar that has no quote of its own.</p>
+    <ul class="set-list">
+      {% for q in quotes %}
+        <li class="set-row">
+          <form class="set-form" method="post" action="/settings/quotes/{{ q.id }}">
+            <input class="input" name="text" type="text" maxlength="{{ max_quote }}" value="{{ q.text }}" aria-label="Quote">
+            <button class="btn btn-outline" type="submit">Save</button>
+          </form>
+          <form method="post" action="/settings/quotes/{{ q.id }}/delete"><button class="btn btn-danger" type="submit">Delete</button></form>
+        </li>
+      {% endfor %}
+    </ul>
+    <form class="set-form set-add" method="post" action="/settings/quotes/add">
+      <input class="input" name="text" type="text" maxlength="{{ max_quote }}" placeholder="New quote" aria-label="New quote">
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="card settings-card" id="money" data-panel="money" aria-label="Money now">
+    <h2 class="label">Money now</h2>
+    <p class="muted hint">Say how much you had on a day (usually the 1st of a month). Home then shows “All money”: what you had, plus income, minus expenses, minus money sent to people, plus money received from them. Moves between your accounts and jars change nothing. Hryvnias and euros are counted apart.</p>
+    <form class="money-form" method="post" action="/settings/money">
+      <label class="field"><span class="label">On the day</span>
+        <input class="input" name="start_date" type="date" value="{{ money.date }}"></label>
+      <label class="field"><span class="label">Hryvnias (₴)</span>
+        <input class="input" name="uah" type="text" inputmode="decimal" value="{{ money.uah }}" placeholder="0"></label>
+      <label class="field"><span class="label">Euros (€)</span>
+        <input class="input" name="eur" type="text" inputmode="decimal" value="{{ money.eur }}" placeholder="0"></label>
+      <label class="field"><span class="label">Your rate (₴ per €)</span>
+        <input class="input" name="rate" type="text" inputmode="decimal" value="{{ money.rate }}" placeholder="optional"></label>
+      <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+    <p class="muted hint">The rate is typed by you and never looked up online. It gives only one line, “Together ≈ … ₴”. Amounts are never converted anywhere else.</p>
+  </section>
+{% endblock %}

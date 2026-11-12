@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F3EF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1C2124" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="finance">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>{% block title %}finance{% endblock %} · finance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@300..700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  <script>
+    /* Apply the saved theme before the page is drawn, so it does not flash. */
+    document.documentElement.classList.add("js");
+    try {
+      var saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+      var cur = localStorage.getItem("currency");
+      if (cur === "UAH" || cur === "EUR") document.documentElement.dataset.cur = cur;
+    } catch (e) {}
+  </script>
+  <script src="{{ asset('app.js') }}" defer></script>
+</head>
+<body>
+  {% from "_icons.html" import icon %}
+  {# One menu: a bottom bar with a round "+" on a phone, a side menu on a computer.
+     Only screens that already work are listed; new ones are added with their stage. #}
+  <nav class="nav" aria-label="Main">
+    <span class="brand">[finance]</span>
+    {% if viewer %}
+    <a class="nav-item" href="/jars" aria-current="page">
+      <span class="nav-icon">{{ icon("jar") }}</span><span>Jars</span>
+    </a>
+    {% else %}
+    <a class="nav-item" href="/" {% if active == "home" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("home") }}</span><span>Home</span>
+    </a>
+    <a class="nav-item" href="/analytics" {% if active == "analytics" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("chart") }}</span><span>Analytics</span>
+    </a>
+    <a class="nav-add" href="/add" {% if active == "add" %}aria-current="page"{% endif %}>
+      {{ icon("plus") }}<span class="nav-add-text">New entry</span>
+    </a>
+    <a class="nav-item" href="/year" {% if active == "year" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("year") }}</span><span>Year</span>
+    </a>
+    <a class="nav-item nav-desktop" href="/jars" {% if active == "jars" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("jar") }}</span><span>Jars</span>
+    </a>
+    <a class="nav-item" href="/transactions" {% if active == "transactions" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("list") }}</span><span>Transactions</span>
+    </a>
+    <a class="nav-item nav-desktop" href="/settings" {% if active == "settings" %}aria-current="page"{% endif %}>
+      <span class="nav-icon">{{ icon("gear") }}</span><span>Settings</span>
+    </a>
+    {% endif %}
+  </nav>
+  <div class="page">
+    <header class="topbar">
+      <span class="brand-m">[finance]</span>
+      {% if not viewer %}<a class="topbar-link" href="/settings" aria-label="Settings">{{ icon("gear") }}</a>{% endif %}
+      <div class="theme-switch" role="group" aria-label="Theme">
+        {% for value, text, name in [("light", "Light", "sun"), ("dark", "Dark", "moon"), ("system", "System", "auto")] %}
+          <button type="button" data-theme-choice="{{ value }}" aria-pressed="false" aria-label="{{ text }} theme" title="{{ text }}">
+            {{ icon(name) }}<span>{{ text }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

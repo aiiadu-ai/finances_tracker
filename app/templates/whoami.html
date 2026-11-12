@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% set active = "" %}
+{% block title %}Who am I{% endblock %}
+
+{% block content %}
+  <h1>Who am I</h1>
+  <section class="card settings-card">
+    <p><span class="label">Tailscale account the site sees</span><br>
+      {% if login %}<strong>{{ login }}</strong>{% else %}<span class="muted">none</span>{% endif %}</p>
+    <p><span class="label">Came through the Tailscale proxy</span><br>{{ "yes" if proxied else "no" }}</p>
+    <p><span class="label">Restrictions</span><br>{{ "on" if configured else "off (everyone is the owner)" }}</p>
+    <p><span class="label">You are</span><br><strong>{{ "the owner" if role == "owner" else "a viewer" }}</strong></p>
+    {% if not configured and login %}
+      <p class="muted hint">To restrict other people, put this in .env on the server: OWNER_LOGIN={{ login }}</p>
+    {% endif %}
+  </section>
+{% endblock %}

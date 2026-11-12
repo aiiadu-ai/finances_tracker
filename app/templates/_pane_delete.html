@@ -1,0 +1,18 @@
+{% from "_icons.html" import icon %}
+<a class="back-link" href="/transactions?tx={{ tx.id }}">{{ icon("back") }}<span>Back</span></a>
+<h2 class="pane-title">Delete this entry?</h2>
+
+<div class="detail">
+  <p class="label">{{ day }}</p>
+  <p class="data-xl">{{ tx.amount|money(tx.currency) }}</p>
+  <p><span class="cat-tag {% if tx.grp %}g-{{ tx.grp }}{% endif %}">{{ tx.title }}</span></p>
+  {% if tx.comment %}<p class="detail-comment">{{ tx.comment }}</p>{% endif %}
+</div>
+
+{% if errors.get("delete") %}<p class="error" role="alert">✗ {{ errors["delete"] }}</p>{% endif %}
+<p class="muted">This can't be undone.</p>
+
+<form class="actions" method="post" action="/transactions/{{ tx.id }}/delete">
+  <button class="btn btn-danger" type="submit">✗ Delete</button>
+  <a class="btn btn-outline" href="/transactions?tx={{ tx.id }}">Keep it</a>
+</form>

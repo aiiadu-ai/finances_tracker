@@ -1,0 +1,13 @@
+.env
+data/
+.venv/
+__pycache__/
+.pytest_cache/
+*:Zone.Identifier
+
+# Bank exports and other personal files: never in git
+export_*
+*.csv
+
+# Third-party design references (not ours to publish)
+docs/refs/

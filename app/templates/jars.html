@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set active = "jars" %}
+{% block title %}Jars{% endblock %}
+{% from "_icons.html" import icon %}
+
+{% macro jar_card(jar) %}
+  <section class="card jar-card" aria-label="{{ jar.name }}">
+    <div class="card-head">
+      <h2 class="jar-name">{{ jar.name }}</h2>
+      {% if not viewer %}<a class="more" href="/jars/{{ jar.id }}/edit">{{ "Shared · " if jar.shared }}Edit</a>{% endif %}
+    </div>
+    <p class="stat-value" data-fit>{{ jar.balance|money(jar.currency) }}</p>
+    {% if jar.uah_value is not none %}<p class="muted jar-uah">≈ {{ jar.uah_value|money("UAH") }} at your rate {{ "%.2f"|format(jar.my_rate / 100) }}</p>{% endif %}
+    {% if jar.target %}
+      <span class="bar s-ok" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ jar.pct }}"><span style="width: {{ jar.pct }}%"></span></span>
+      <p class="cat-state s-ok">{% if jar.reached %}✓ Goal reached · {{ jar.target|money(jar.currency) }}{% else %}{{ jar.pct }}% of {{ jar.target|money(jar.currency) }} · {{ jar.left|money(jar.currency) }} to go{% endif %}</p>
+    {% else %}
+      <p class="muted">No goal set.</p>
+    {% endif %}
+    {% if jar.quote %}<p class="quote">“{{ jar.quote }}”</p>{% endif %}
+    {% if viewer %}
+    {% elif not jar.archived %}
+      <div class="actions">
+        <a class="btn btn-primary" href="/add?kind=jar&jar={{ jar.id }}&dir=in">Add money</a>
+        <a class="btn btn-outline" href="/add?kind=jar&jar={{ jar.id }}&dir=out">Withdraw</a>
+      </div>
+    {% else %}
+      <form class="actions" method="post" action="/jars/{{ jar.id }}/restore">
+        <button class="btn btn-outline" type="submit">Restore</button>
+      </form>
+    {% endif %}
+  </section>
+{% endmacro %}
+
+{% block content %}
+  <header class="page-head">
+    <h1>Jars</h1>
+    {% if not viewer %}<a class="btn btn-outline" href="/jars/new">New jar</a>{% endif %}
+  </header>
+  {% if saved %}<p class="notice" role="status">✓ Saved {{ saved }}.</p>{% endif %}
+
+  {% if open_jars %}
+    <div class="jar-grid">
+      {% for jar in open_jars %}{{ jar_card(jar) }}{% endfor %}
+    </div>
+  {% else %}
+    {% if viewer %}<p class="muted">Nothing is shared with you yet.</p>
+    {% else %}<p class="muted">No jars yet. A jar is a goal you save towards, in ₴ or €. <a href="/jars/new">Create the first one</a></p>{% endif %}
+  {% endif %}
+
+  {% if archived %}
+    <details class="jars-archived">
+      <summary>Archived ({{ archived|length }})</summary>
+      <div class="jar-grid">
+        {% for jar in archived %}{{ jar_card(jar) }}{% endfor %}
+      </div>
+    </details>
+  {% endif %}
+{% endblock %}

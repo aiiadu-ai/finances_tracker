@@ -1,0 +1,22 @@
+# systemd service for the Telegram bot. Installed as /etc/systemd/system/finance-bot.service.
+[Unit]
+Description=finance Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aiia
+WorkingDirectory=/home/aiia/finance
+# TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID come from .env (read by the bot itself, never from git).
+ExecStart=/home/aiia/finance/.venv/bin/python -m tgbot
+Restart=on-failure
+RestartSec=10
+# Small shared server: keep it on a short leash.
+MemoryMax=150M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

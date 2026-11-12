@@ -1,0 +1,22 @@
+# systemd service for the finance site. Installed as /etc/systemd/system/finance.service.
+[Unit]
+Description=finance (personal finance tracker)
+After=network.target
+
+[Service]
+Type=simple
+User=aiia
+WorkingDirectory=/home/aiia/finance
+# Only localhost: the site is reached through `tailscale serve`, never from the public internet.
+ExecStart=/home/aiia/finance/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+# The server is small (~1 GB) and shared with claude-bot: keep this service on a short leash.
+MemoryMax=200M
+# Basic hardening.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
