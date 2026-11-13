@@ -8,6 +8,12 @@
   <span class="c-diff{% if c.state %} s-{{ c.state }}{% endif %}">{% if c.state %}{{ {"ok": "✓", "close": "!", "over": "✗"}[c.state] }} {% endif %}{{ c.diff|plain }}</span>
 {% endmacro %}
 
+{# What is left at the end of a month: a number (≈ for a forecast from the plan), or — before the starting day. #}
+{% macro left_cell(c) -%}
+  {%- if c.value is none %}<span class="c-none">—</span>
+  {%- else %}<span class="c-left{% if c.forecast %} fc{% endif %}">{% if c.forecast %}≈{% endif %}{{ c.value|plain }}</span>{% endif -%}
+{%- endmacro %}
+
 {% macro read_cell(c) %}
   <span class="c-plan">{{ c.plan|plain }}</span>
   <span class="c-actual">{{ (c.actual or None)|plain }}</span>
@@ -118,6 +124,16 @@
                     <td class="yr-total">{{ read_cell(t.total) }}</td>
                   </tr>
                 {% endfor %}
+                {% if view.left %}
+                  <tr class="yr-sum yr-left">
+                    <th scope="row" class="yr-name" title="Left at the end of the month">Left at end</th>
+                    <td class="yr-fill"></td>
+                    {% for c in view.left.months %}
+                      <td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">{{ left_cell(c) }}</td>
+                    {% endfor %}
+                    <td class="yr-total">{{ left_cell(view.left.year) }}</td>
+                  </tr>
+                {% endif %}
               </tbody>
             </table>
           </div>
@@ -128,6 +144,11 @@
       Difference: ✓ on plan · ! within 20% of the plan · ✗ over the plan (expenses) or short of it (income).
       Months that have not come yet show no difference; unplanned spending counts in the totals. “Year” compares the plan
       up to this month with what has happened so far.
+    </p>
+    <p class="muted yr-legend">
+      {% if views[0].left %}Left at end: what you have at the end of each month (all your money, jars included): what really
+      happened up to this month, then the plan (≈). A month with no plan keeps the number, and the year carries on into the next.
+      {% else %}To see what is left at the end of each month, set your starting money in <a href="/settings#money">Settings → Money</a>.{% endif %}
     </p>
     <div class="actions yr-save">
       <button class="btn btn-primary btn-block" type="submit">Save plan</button>

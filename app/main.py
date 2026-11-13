@@ -607,6 +607,7 @@ def render_year(
             for (cat, month, code), amount in plans.month_plans(conn, year).items()
         }
     today = date.today()
+    left = wealth.left_at_month_end(conn, wealth.get_start(conn), year, today)
     context = {
         "year": year,
         "prev_year": year - 1 if year > 2000 else None,
@@ -614,7 +615,7 @@ def render_year(
         "month_names": MONTH_NAMES,
         "now_month": today.month if year == today.year else None,  # the month to scroll to and mark
         "views": [
-            {"code": code, "symbol": CURRENCY_SYMBOLS[code], "grid": plans.grid(conn, year, code, today, categories)}
+            {"code": code, "symbol": CURRENCY_SYMBOLS[code], "grid": plans.grid(conn, year, code, today, categories), "left": left[code] if left else None}
             for code in plans.CURRENCIES
         ],
         "cell_key": cell_key,

@@ -527,6 +527,9 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 .yr-sep .yr-name { font: 500 11px/16px var(--font-mono); }
 .yr-sum th, .yr-sum td { font-weight: 500; }
 .yr-sum-first th, .yr-sum-first td { border-top: 1px solid var(--line-strong); }
+.yr-left th, .yr-left td { border-top: 1px solid var(--line); font-weight: 600; }
+.yr-left .fc { color: var(--ink-muted); font-style: italic; font-weight: 500; }
+.yr-left .c-none { color: var(--ink-muted); font-weight: 400; }
 /* The month we are in: a soft tint and a bold name. */
 .yr-table .yr-now { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .yr-table thead .yr-now { color: var(--accent-ink); font-weight: 700; box-shadow: inset 0 -2px 0 var(--accent-ink); }

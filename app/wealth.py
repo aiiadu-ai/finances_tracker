@@ -119,6 +119,60 @@ def standing(conn, start: dict | None, first: date, today: date) -> dict:
     return result
 
 
+NET_SQL = """SUM(CASE
+            WHEN kind = 'income' THEN amount
+            WHEN kind = 'expense' THEN -amount
+            WHEN kind = 'transfer' AND counterpart = 'people' THEN CASE direction WHEN 'in' THEN amount ELSE -amount END
+            ELSE 0 END)"""
+
+
+def left_at_month_end(conn, start: dict | None, year: int, today: date) -> dict | None:
+    """What is left at the end of each month of `year`, per currency (None without a start).
+
+    It is the All money of that day: start + income + received − expenses − sent (money in jars included; moves
+    between her own accounts and into / out of jars change nothing). Up to this month it is what really happened;
+    after it, the plan: the previous number + the planned income − the planned expenses of the month (a month with
+    no plan keeps the number). The chain runs on from year to year, so January starts where December ended.
+    A month before the starting day has no number.
+
+    Returns {currency: {"months": [{"value", "forecast"} × 12], "year": the December cell}}.
+    """
+    if not start:
+        return None
+    first = date.fromisoformat(start["date"])
+    this_month = today.strftime("%Y-%m")
+    actual = {
+        (row["m"], row["currency"]): row["net"]
+        for row in conn.execute(
+            f"SELECT substr(date, 1, 7) AS m, currency, {NET_SQL} AS net FROM transactions "
+            "WHERE date >= ? AND date <= ? GROUP BY m, currency",
+            (start["date"], today.isoformat()),
+        )
+    }
+    planned = {
+        (row["month"], row["currency"]): row["net"]
+        for row in conn.execute(
+            """
+            SELECT p.month, p.currency, SUM(CASE c.kind WHEN 'income' THEN p.amount ELSE -p.amount END) AS net
+            FROM plans p JOIN categories c ON c.id = p.category_id GROUP BY p.month, p.currency
+            """
+        )
+    }
+    result = {}
+    for code in ("UAH", "EUR"):
+        value, cells = start[code], {}
+        y, m = first.year, first.month
+        while (y, m) <= (year, 12):
+            key = f"{y}-{m:02d}"
+            forecast = key > this_month
+            value += (planned if forecast else actual).get((key, code), 0)
+            cells[(y, m)] = {"value": value, "forecast": forecast}
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        months = [cells.get((year, month), {"value": None, "forecast": False}) for month in range(1, 13)]
+        result[code] = {"months": months, "year": months[11]}
+    return result
+
+
 def together(totals: dict[str, int], rate: int | None) -> int | None:
     """Both currencies as hryvnias at her own rate. Only for one "about" line, never stored or mixed in sums."""
     if not rate or not totals["EUR"]:
