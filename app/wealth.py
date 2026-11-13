@@ -135,7 +135,8 @@ def left_at_month_end(conn, start: dict | None, year: int, today: date) -> dict 
     no plan keeps the number). The chain runs on from year to year, so January starts where December ended.
     A month before the starting day has no number.
 
-    Returns {currency: {"months": [{"value", "forecast"} × 12], "year": the December cell}}.
+    Returns {currency: {"months": [{"value", "forecast", "together"} × 12], "year": the December cell}};
+    "together" is both currencies in hryvnias at her rate (None without a rate or without euros that month).
     """
     if not start:
         return None
@@ -170,6 +171,13 @@ def left_at_month_end(conn, start: dict | None, year: int, today: date) -> dict 
             y, m = (y + 1, 1) if m == 12 else (y, m + 1)
         months = [cells.get((year, month), {"value": None, "forecast": False}) for month in range(1, 13)]
         result[code] = {"months": months, "year": months[11]}
+    # Both currencies in one number (euros at her own rate), for a small line under each month: "how much in all".
+    rate = start.get("rate")
+    for code in ("UAH", "EUR"):
+        for i, cell in enumerate(result[code]["months"]):
+            uah, eur = result["UAH"]["months"][i]["value"], result["EUR"]["months"][i]["value"]
+            cell["together"] = together({"UAH": uah, "EUR": eur}, rate) if uah is not None and rate and eur else None
+        result[code]["year"] = result[code]["months"][11]
     return result
 
 

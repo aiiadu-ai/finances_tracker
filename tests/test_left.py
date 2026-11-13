@@ -137,3 +137,42 @@ def test_the_row_stays_in_every_view_and_next_year_continues(conn):
     row = page.split('class="yr-sum yr-left"')[1].split("</tr>")[0]
     assert "≈12 500" in row or "≈ 12 500" in row or "12 500" in row  # 10 000 carried over + 2 500
     assert "c-plan" not in row and "c-actual" not in row and "c-diff" not in row  # not tied to a view: always shown
+
+
+# ---------- Rounding down to hundreds, and euros + hryvnias in one small number ----------
+def test_floor100_rounds_down_to_whole_hundreds():
+    from app.main import floor100
+    assert floor100(1234567) == 1230000        # 12 345.67 -> 12 300
+    assert floor100(1230000) == 1230000 and floor100(0) == 0 and floor100(9999) == 0
+    assert floor100(-5000) == -10000           # "down" also for a minus: -50 -> -100
+    assert floor100(None) is None
+
+
+def test_together_adds_euros_at_her_rate_only_when_there_is_a_rate_and_euros(conn):
+    wealth.save_start(conn, "2026-02-01", 1000000, 45000, 5000)         # 10 000 ₴, 450 €, rate 50
+    plan(conn, "2026-03", "Salary", 100000)
+    got = wealth.left_at_month_end(conn, wealth.get_start(conn), 2026, TODAY)
+    assert got["UAH"]["months"][1]["together"] == 1000000 + 2250000      # 10 000 + 450 × 50
+    assert got["EUR"]["months"][1]["together"] == got["UAH"]["months"][1]["together"]  # the same total in both views
+    assert got["UAH"]["months"][2]["together"] == 1100000 + 2250000 and got["UAH"]["months"][0]["together"] is None  # before the start
+    wealth.save_start(conn, "2026-02-01", 1000000, 45000, None)
+    assert wealth.left_at_month_end(conn, wealth.get_start(conn), 2026, TODAY)["UAH"]["months"][1]["together"] is None  # no rate
+    wealth.save_start(conn, "2026-02-01", 1000000, 0, 5000)
+    assert wealth.left_at_month_end(conn, wealth.get_start(conn), 2026, TODAY)["UAH"]["months"][1]["together"] is None  # no euros
+
+
+def test_the_row_shows_rounded_numbers_and_the_small_total_line(conn):
+    year = date.today().year
+    wealth.save_start(conn, f"{year}-01-01", 1234567, 45000, 5000)      # 12 345.67 ₴ and 450 €
+    page = page_for(conn, year)
+    row = page.split('class="yr-sum yr-left')[1].split("</tr>")[0]
+    assert "yr-left-two" in page and "12 300" in row and "12 345" not in row   # rounded down to hundreds
+    assert 'class="c-sub"' in row and "≈34 800 ₴" in row                      # 12 345.67 + 450 × 50 = 34 845.67 -> 34 800
+    assert "everything together in ₴, with euros at your rate" in page
+
+
+def test_no_small_line_without_a_rate(conn):
+    year = date.today().year
+    wealth.save_start(conn, f"{year}-01-01", 1234567, 45000, None)
+    row = page_for(conn, year).split('class="yr-sum yr-left')[1].split("</tr>")[0]
+    assert "c-sub" not in row and "yr-left-two" not in row.split(">")[0]

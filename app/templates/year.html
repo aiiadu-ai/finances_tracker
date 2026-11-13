@@ -9,9 +9,11 @@
 {% endmacro %}
 
 {# What is left at the end of a month: a number (≈ for a forecast from the plan), or — before the starting day. #}
+{# Rounded down to whole hundreds. Under it, small: everything together in ₴ (euros at her rate), when there are euros. #}
 {% macro left_cell(c) -%}
   {%- if c.value is none %}<span class="c-none">—</span>
-  {%- else %}<span class="c-left{% if c.forecast %} fc{% endif %}">{% if c.forecast %}≈{% endif %}{{ c.value|plain }}</span>{% endif -%}
+  {%- else %}<span class="c-left{% if c.forecast %} fc{% endif %}">{% if c.forecast %}≈{% endif %}{{ (c.value|floor100)|plain }}</span>
+    {%- if c.together is not none and c.together != c.value %}<span class="c-sub" title="Everything together in ₴, euros at your rate">≈{{ (c.together|floor100)|plain }} ₴</span>{% endif %}{% endif -%}
 {%- endmacro %}
 
 {% macro read_cell(c) %}
@@ -125,7 +127,7 @@
                   </tr>
                 {% endfor %}
                 {% if view.left %}
-                  <tr class="yr-sum yr-left">
+                  <tr class="yr-sum yr-left{% if view.left.months|selectattr("together")|list %} yr-left-two{% endif %}">
                     <th scope="row" class="yr-name" title="Left at the end of the month">Left at end</th>
                     <td class="yr-fill"></td>
                     {% for c in view.left.months %}
@@ -146,8 +148,9 @@
       up to this month with what has happened so far.
     </p>
     <p class="muted yr-legend">
-      {% if views[0].left %}Left at end: what you have at the end of each month (all your money, jars included): what really
-      happened up to this month, then the plan (≈). A month with no plan keeps the number, and the year carries on into the next.
+      {% if views[0].left %}Left at end: what you have at the end of each month (all your money, jars included), rounded down to whole hundreds:
+      what really happened up to this month, then the plan (≈). A month with no plan keeps the number, and the year carries on into the next.
+      The small number under it is everything together in ₴, with euros at your rate (Settings → Money).
       {% else %}To see what is left at the end of each month, set your starting money in <a href="/settings#money">Settings → Money</a>.{% endif %}
     </p>
     <div class="actions yr-save">

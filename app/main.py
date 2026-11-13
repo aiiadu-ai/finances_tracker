@@ -92,6 +92,14 @@ def plain(amount: int | None) -> str:
 templates.env.filters["plain"] = plain
 templates.env.filters["compact"] = analytics.compact
 
+
+def floor100(amount):
+    """An amount in kopiykas / cents rounded DOWN to whole hundreds (12 345.67 -> 12 300; -50 -> -100)."""
+    return None if amount is None else amount // 10000 * 10000
+
+
+templates.env.filters["floor100"] = floor100
+
 # Where a long word may break in a narrow bar chart (soft hyphens, shown as "-" only when the word breaks).
 SYLLABLES = {
     "entertainment": "en-ter-tain-ment", "electronics": "elec-tron-ics", "education": "edu-ca-tion",
