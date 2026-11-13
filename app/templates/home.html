@@ -10,8 +10,8 @@
   {% else %}✓ On plan · {{ line.left|money(line.currency) }} left{% endif %}
 {% endmacro %}
 
-{% macro stat(label, amount, code) %}
-  <section class="card stat" aria-label="{{ label }}">
+{% macro stat(label, amount, code, tone="") %}
+  <section class="card stat{% if tone %} stat-{{ tone }}{% endif %}" aria-label="{{ label }}">
     <h2 class="label">{{ label }}</h2>
     <p class="stat-value" data-fit>{{ amount|money(code) }}</p>
   </section>
@@ -89,8 +89,8 @@
       {% if "balance" in hidden %}
         {# Without the Balance card the four numbers sit in one block: two by two on a phone, four across on a computer. #}
         <div class="grid grid-4">
-          {{ stat("Income", view.income, view.code) }}
-          {{ stat("Expenses", view.expense, view.code) }}
+          {{ stat("Income", view.income, view.code, "income") }}
+          {{ stat("Expenses", view.expense, view.code, "expense") }}
           {{ stat("In jars", view.in_jars, view.code) }}
           {{ stat("Free", view.free, view.code) }}
         </div>
@@ -100,8 +100,8 @@
             <h2 class="label">Balance</h2>
             <p class="stat-value" data-fit>{{ view.balance|money(view.code) }}</p>
           </section>
-          {{ stat("Income", view.income, view.code) }}
-          {{ stat("Expenses", view.expense, view.code) }}
+          {{ stat("Income", view.income, view.code, "income") }}
+          {{ stat("Expenses", view.expense, view.code, "expense") }}
         </div>
 
         <div class="grid grid-2">

@@ -6,6 +6,7 @@
   /* Group glow: a soft pastel neon around a white block. */
   --glow-essentials:#6FBF92; --glow-fixed:#6FA3D6; --glow-fun:#D68FBF;
   --success:#2E6A63; --warning:#8A5A1C; --danger:#A3361F; --focus:#3F5A5E;
+  --income:#1F7A4D; --expense:#B3261E; /* the numbers of Income and Expenses (not the block behind them) */
   --shadow-soft:0 1px 2px rgba(43,36,34,.06), 0 8px 24px rgba(43,36,34,.08);
   --font-sans:"Onest","Segoe UI",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
@@ -19,6 +20,7 @@
     --accent:#8FB3A0; --on-accent:#1C2124; --accent-ink:#8FB3A0; --accent-soft:#2C3A33;
     --glow-essentials:#5FAE85; --glow-fixed:#5B93C7; --glow-fun:#C47FAE;
     --success:#7FC4B8; --warning:#E0B27A; --danger:#F0A08C; --focus:#9EC0C6;
+    --income:#6FD3A0; --expense:#F08A7A;
     --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     color-scheme: dark;
   }
@@ -29,6 +31,7 @@
   --accent:#8FB3A0; --on-accent:#1C2124; --accent-ink:#8FB3A0; --accent-soft:#2C3A33;
   --glow-essentials:#5FAE85; --glow-fixed:#5B93C7; --glow-fun:#C47FAE;
   --success:#7FC4B8; --warning:#E0B27A; --danger:#F0A08C; --focus:#9EC0C6;
+  --income:#6FD3A0; --expense:#F08A7A;
   --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
   color-scheme: dark;
 }
@@ -297,6 +300,8 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 .stat p, .arc-left { white-space: nowrap; overflow-wrap: normal; }
 .recent { grid-column: 1 / -1; }
 .stat-value { font: 400 34px/40px var(--font-mono); font-variant-numeric: tabular-nums; }
+.stat-income .stat-value { color: var(--income); }
+.stat-expense .stat-value { color: var(--expense); }
 .stat-hero .stat-value { font-size: 52px; line-height: 60px; letter-spacing: -.02em; }
 .stat-sub { font: 400 18px/24px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
 .stat-hero .stat-sub { font-size: 24px; line-height: 30px; }

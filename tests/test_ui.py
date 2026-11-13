@@ -55,3 +55,13 @@ def test_the_numbers_behind_hidden_blocks_are_still_counted(client):
     with db.connection() as conn:
         built = analytics.build(conn, "month", date.today().replace(day=1), date.today(), "UAH")
     assert built["forecast"] is not None and built["dynamics"]["expense"]["now"] == 12300 and built["trend"]["expense"]["cols"]
+
+
+def test_income_is_green_and_expenses_are_red_on_home(client):
+    page = client.get("/").text
+    assert 'class="card stat stat-income" aria-label="Income"' in page
+    assert 'class="card stat stat-expense" aria-label="Expenses"' in page
+    assert 'aria-label="In jars"' in page and "stat-income" not in page.split('aria-label="In jars"')[1].split("</section>")[0]
+    css = client.get("/static/style.css").text
+    assert ".stat-income .stat-value { color: var(--income); }" in css and ".stat-expense .stat-value { color: var(--expense); }" in css
+    assert css.count("--income:") == 3 and css.count("--expense:") == 3  # light, dark by system, dark chosen by hand
