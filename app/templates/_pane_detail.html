@@ -1,5 +1,5 @@
 {% from "_icons.html" import icon %}
-<a class="back-link" href="/transactions">{{ icon("back") }}<span>Transactions</span></a>
+<a class="back-link" href="/transactions?{{ flt.qs }}">{{ icon("back") }}<span>Transactions</span></a>
 
 <div class="detail">
   <p class="label">{{ day }}</p>
@@ -11,6 +11,6 @@
 </div>
 
 <div class="actions">
-  {% if not (tx.kind == "transfer" and not tx.jar_id) %}<a class="btn btn-outline" href="/transactions/{{ tx.id }}/edit">Edit</a>{% endif %}
-  <a class="btn btn-danger" href="/transactions/{{ tx.id }}/delete">Delete</a>
+  {% if not (tx.kind == "transfer" and not tx.jar_id) %}<a class="btn btn-outline" href="/transactions/{{ tx.id }}/edit?{{ flt.qs }}">Edit</a>{% endif %}
+  <a class="btn btn-danger" href="/transactions/{{ tx.id }}/delete?{{ flt.qs }}">Delete</a>
 </div>

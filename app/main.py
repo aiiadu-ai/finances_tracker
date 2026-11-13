@@ -321,7 +321,7 @@ def keep_jar_id(conn, tx_id: int | None) -> int | None:
 
 
 TX_SELECT = """
-    SELECT t.*, c.name AS category, c."group" AS grp, j.name AS jar, a.name AS account,
+    SELECT t.*, c.name AS category, c."group" AS grp, j.name AS jar, a.name AS account, oc.id AS card_id,
            COALESCE(
                c.name,
                CASE WHEN t.jar_id IS NOT NULL THEN
@@ -336,6 +336,7 @@ TX_SELECT = """
     LEFT JOIN jars j ON j.id = t.jar_id
     LEFT JOIN accounts a ON a.id = t.account_id
     LEFT JOIN accounts f ON f.id = t.from_account_id
+    LEFT JOIN accounts oc ON oc.mono_id = substr(t.external_id, 1, instr(t.external_id, ':') - 1)
 """
 
 
@@ -348,6 +349,115 @@ def get_transaction(conn, tx_id: int):
 
 def new_entry_values(kind: str = "expense", currency: str = "UAH") -> dict:
     return {"kind": kind, "currency": currency, "date": date.today().isoformat()}
+
+
+# ---------- Transactions: a month, filtered by category and account ----------
+class Filter:
+    """What the list shows: one month, and (optionally) some categories and accounts. It lives in the address:
+    /transactions?month=2026-11&cat=3&cat=5&acc=2   (cat=transfer: the transfers, which have no category)."""
+
+    def __init__(self, month: date, cats: list[int], transfers_too: bool, accs: list[int]):
+        self.month, self.cats, self.transfers_too, self.accs = month, cats, transfers_too, accs
+
+    @property
+    def active(self) -> bool:
+        return bool(self.cats or self.transfers_too or self.accs)
+
+    @classmethod
+    def from_request(cls, request: Request) -> "Filter":
+        params = request.query_params
+        month = parse_month(params.get("month", "")) or date.today().replace(day=1)
+        raw = params.getlist("cat")
+        cats = sorted({int(x) for x in raw if x.isdigit()})
+        accs = sorted({int(x) for x in params.getlist("acc") if x.isdigit()})
+        return cls(month, cats, "transfer" in raw, accs)
+
+    def query(self, **change) -> str:
+        """The address part for this filter, with changes: month=..., toggle_cat=id|"transfer", toggle_acc=id, clear=True."""
+        month, cats, tr, accs = self.month, list(self.cats), self.transfers_too, list(self.accs)
+        if "month" in change:
+            month = change["month"]
+        if change.get("clear"):
+            cats, tr, accs = [], False, []
+        if "toggle_cat" in change:
+            key = change["toggle_cat"]
+            if key == "transfer":
+                tr = not tr
+            else:
+                cats = [c for c in cats if c != key] if key in cats else sorted(cats + [key])
+        if "toggle_acc" in change:
+            key = change["toggle_acc"]
+            accs = [a for a in accs if a != key] if key in accs else sorted(accs + [key])
+        parts = [f"month={month:%Y-%m}"] + [f"cat={c}" for c in cats] + (["cat=transfer"] if tr else []) + [f"acc={a}" for a in accs]
+        return "&".join(parts)
+
+
+def filtered_rows(conn, flt: Filter):
+    """The month's entries that fit the filter (newest first).
+
+    Categories: any of the chosen ones (and the transfers, if asked). Accounts: any of the chosen ones; for a
+    bank line that is the card it is on, and a transfer also counts for where it went / came from.
+    While a filter is on, moves between my own accounts and into jars are left out unless "Transfers" is chosen.
+    """
+    first, following = flt.month, shift_month(flt.month, 1)
+    where, args = ["t.date >= ?", "t.date < ?"], [first.isoformat(), following.isoformat()]
+    if flt.cats or flt.transfers_too:
+        marks = ",".join("?" * len(flt.cats))
+        parts = ([f"t.category_id IN ({marks})"] if flt.cats else []) + (["t.kind = 'transfer'"] if flt.transfers_too else [])
+        where.append("(" + " OR ".join(parts) + ")")
+        args += flt.cats
+    if flt.accs:
+        marks = ",".join("?" * len(flt.accs))
+        where.append(f"(t.account_id IN ({marks}) OR t.from_account_id IN ({marks}) OR oc.id IN ({marks}))")
+        args += flt.accs * 3
+    if flt.active and not flt.transfers_too:
+        where.append("NOT (t.kind = 'transfer' AND (t.jar_id IS NOT NULL OR t.counterpart = 'accounts'))")
+    return conn.execute(f"{TX_SELECT} WHERE {' AND '.join(where)} ORDER BY t.date DESC, t.id DESC", args).fetchall()
+
+
+def month_totals(rows) -> dict:
+    """Per currency: income − expenses of these entries (money sent to people is an expense, received is income)."""
+    net = {}
+    for row in rows:
+        if row["kind"] == "income" or (row["counterpart"] == "people" and row["direction"] == "in"):
+            net[row["currency"]] = net.get(row["currency"], 0) + row["amount"]
+        elif row["kind"] == "expense" or row["counterpart"] == "people":
+            net[row["currency"]] = net.get(row["currency"], 0) - row["amount"]
+    return {code: net[code] for code in ("UAH", "EUR") if code in net}
+
+
+def filter_view(conn, flt: Filter, rows, current: date) -> dict:
+    """Everything the filter bar shows: the month arrows, the pills (each a link that toggles it), the sums."""
+    cats = load_categories(conn)
+    chosen = set(flt.cats)
+
+    def pill(label, **toggle):
+        key = toggle.get("toggle_cat", toggle.get("toggle_acc"))
+        on = key in chosen if "toggle_cat" in toggle and key != "transfer" else (
+            flt.transfers_too if key == "transfer" else key in flt.accs)
+        return {"label": label, "on": on, "href": "/transactions?" + flt.query(**toggle)}
+
+    groups = []
+    for key, label in GROUPS:
+        members = [c for c in cats["expense"] if c["grp"] == key]
+        groups.append({"key": key, "label": label, "pills": [pill(c["name"], toggle_cat=c["id"]) for c in members]})
+    groups.append({"key": "income", "label": "Income", "pills": [pill(c["name"], toggle_cat=c["id"]) for c in cats["income"]]})
+    accounts = [pill(a["name"], toggle_acc=a["id"]) for a in transfers.list_accounts(conn)]
+    following = shift_month(flt.month, 1)
+    return {
+        "groups": [g for g in groups if g["pills"]],
+        "accounts": accounts,
+        "other": [pill("Transfers", toggle_cat="transfer")],
+        "active": flt.active,
+        "count": len(flt.cats) + len(flt.accs) + (1 if flt.transfers_too else 0),
+        "clear_href": "/transactions?" + flt.query(clear=True),
+        "label": f"{flt.month:%B %Y}",
+        "prev": "/transactions?" + flt.query(month=shift_month(flt.month, -1)),
+        "next": "/transactions?" + flt.query(month=following) if flt.month < current else None,
+        "qs": flt.query(),
+        "totals": month_totals(rows),
+        "n": len(rows),
+    }
 
 
 def render_split(
@@ -368,7 +478,8 @@ def render_split(
 
     On a phone only one of the two is shown: `view` says which.
     """
-    rows = conn.execute(f"{TX_SELECT} ORDER BY t.date DESC, t.id DESC").fetchall()
+    flt = Filter.from_request(request)
+    rows = filtered_rows(conn, flt)
     days = [
         {"label": day_label(day), "items": list(items)}
         for day, items in groupby(rows, key=lambda row: row["date"])
@@ -377,6 +488,7 @@ def render_split(
         "pane": pane,
         "view": view,
         "days": days,
+        "flt": filter_view(conn, flt, rows, date.today().replace(day=1)),
         "tx": tx,
         "selected": tx["id"] if tx else None,
         "day": day_label(tx["date"]) if tx else "",

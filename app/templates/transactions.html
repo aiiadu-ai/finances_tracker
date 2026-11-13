@@ -6,6 +6,7 @@
   <div class="split" data-view="{{ view }}">
     <section class="list-pane" aria-label="Transactions">
       <h1>Transactions</h1>
+      {% include "_filter.html" %}
 
       {% if deleted %}
         <p class="notice" role="status"><span>✓ Deleted.</span></p>
@@ -19,7 +20,7 @@
               <ul class="card tx-list">
                 {% for item in day["items"] %}
                   <li>
-                    <a class="tx {% if item.grp %}g-{{ item.grp }}{% endif %}" href="/transactions?tx={{ item.id }}" {% if item.id == selected %}aria-current="true"{% endif %}>
+                    <a class="tx {% if item.grp %}g-{{ item.grp }}{% endif %}" href="/transactions?tx={{ item.id }}&amp;{{ flt.qs }}" {% if item.id == selected %}aria-current="true"{% endif %}>
                       <span class="tx-main">
                         <span class="tx-category">{{ item.title }}</span>
                         {% if item.comment %}<span class="tx-comment">{{ item.comment }}</span>{% endif %}
@@ -33,7 +34,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="muted">Nothing here yet.</p>
+        <p class="muted">{{ "Nothing matches this filter." if flt.active else "Nothing in this month yet." }}</p>
       {% endif %}
     </section>
 

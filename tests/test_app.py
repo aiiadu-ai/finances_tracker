@@ -137,8 +137,8 @@ def test_transaction_details_come_before_edit(client):
     client.post("/add", data=entry(comment="latte"))
     tx_id = all_transactions()[0]["id"]
     page = client.get(f"/transactions?tx={tx_id}").text
-    assert f'href="/transactions/{tx_id}/edit"' in page
-    assert f'href="/transactions/{tx_id}/delete"' in page
+    assert f'href="/transactions/{tx_id}/edit?' in page        # the link keeps the month and the filter
+    assert f'href="/transactions/{tx_id}/delete?' in page
     assert "latte" in page
     assert client.get("/transactions?tx=999").status_code == 404
 

@@ -1,5 +1,5 @@
 {% from "_icons.html" import icon %}
-<a class="back-link" href="/transactions?tx={{ tx.id }}">{{ icon("back") }}<span>Back</span></a>
+<a class="back-link" href="/transactions?tx={{ tx.id }}&amp;{{ flt.qs }}">{{ icon("back") }}<span>Back</span></a>
 <h2 class="pane-title">Delete this entry?</h2>
 
 <div class="detail">

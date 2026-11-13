@@ -1,0 +1,45 @@
+{% from "_icons.html" import icon %}
+{# The month, what the filtered entries add up to, and the filter: every pill is a link that adds / removes its choice. #}
+<div class="flt">
+  <header class="flt-month">
+    <a class="round-link" href="{{ flt.prev }}" aria-label="Previous month">{{ icon("back") }}</a>
+    <h2 class="flt-title">{{ flt.label }}</h2>
+    {% if flt.next %}<a class="round-link round-next" href="{{ flt.next }}" aria-label="Next month">{{ icon("next") }}</a>{% else %}<span class="round-link round-link-off round-next" aria-hidden="true"></span>{% endif %}
+  </header>
+
+  <p class="flt-total" aria-label="Total of the entries shown">
+    {% if flt.totals %}
+      {% for code, net in flt.totals.items() %}<strong class="flt-sum">{{ "+" if net > 0 }}{{ net|money(code) }}</strong>{% endfor %}
+      <span class="muted">· {{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
+    {% else %}
+      <span class="muted">{{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
+    {% endif %}
+  </p>
+
+  <details class="flt-panel" {% if flt.active %}open{% endif %}>
+    <summary>Filter{% if flt.count %} <span class="flt-badge">{{ flt.count }}</span>{% endif %}</summary>
+    {% for g in flt.groups %}
+      <div class="flt-group{% if g.key != 'income' %} flt-tinted{% endif %}">
+        {% if g.key == 'income' %}<p class="label">{{ g.label }}</p>{% endif %}{# the three expense groups are told apart by their glow, without labels #}
+        <div class="flt-pills">
+          {% for p in g.pills %}
+            <a class="fpill{% if g.key != 'income' %} g-{{ g.key }}{% endif %}{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+    <div class="flt-group">
+      <p class="label">Accounts</p>
+      <div class="flt-pills">
+        {% for p in flt.accounts %}<a class="fpill{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>{% endfor %}
+      </div>
+    </div>
+    <div class="flt-group">
+      <p class="label">Other</p>
+      <div class="flt-pills">
+        {% for p in flt.other %}<a class="fpill{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>{% endfor %}
+      </div>
+    </div>
+    {% if flt.active %}<a class="btn btn-outline flt-clear" href="{{ flt.clear_href }}">Clear</a>{% endif %}
+  </details>
+</div>
