@@ -202,6 +202,7 @@ function setupCurrencySwitch() {
       try { localStorage.setItem("currency", button.dataset.curChoice); } catch (e) { /* not remembered */ }
       show();
       fitNumbers();
+      if (window.scrollYearToNow) window.scrollYearToNow(); // a table that was hidden is placed now
     });
   });
   show();
@@ -235,6 +236,7 @@ function setupYear() {
     grid.dataset.mode = mode;
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.modeChoice === mode)));
     fitNumbers();
+    if (window.scrollYearToNow) window.scrollYearToNow(); // the columns moved (the "All months" column comes and goes)
   }
   try {
     const saved = localStorage.getItem("yearMode");
@@ -244,6 +246,19 @@ function setupYear() {
     setMode(button.dataset.modeChoice);
     try { localStorage.setItem("yearMode", button.dataset.modeChoice); } catch (e) { /* not remembered */ }
   }));
+
+  // Open on the month we are in: scroll so that its column stands right after the name column.
+  function scrollYearToNow() {
+    document.querySelectorAll(".yr-scroll").forEach((box) => {
+      const now = box.querySelector("thead th.yr-now");
+      const name = box.querySelector("thead th.yr-name");
+      if (!box.clientWidth) return; // the other currency is hidden: it is placed when it is shown
+      box.scrollLeft = now && name ? Math.max(0, now.offsetLeft - name.offsetWidth) : 0;
+    });
+  }
+  window.scrollYearToNow = scrollYearToNow;
+  scrollYearToNow();
+  window.addEventListener("load", scrollYearToNow);
 
   // Typing one amount in "All months" fills the 12 plan boxes of that row.
   document.querySelectorAll("input[data-fill]").forEach((box) => {

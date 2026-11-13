@@ -74,25 +74,30 @@
           <div class="yr-scroll">
             <table class="yr-table">
               <caption class="sr-only">Plan and reality for {{ year }} in {{ 'hryvnias' if view.code == 'UAH' else 'euros' }}</caption>
+              <colgroup>
+                <col class="yr-col-name"><col class="yr-col-fill">
+                {% for name in month_names %}<col class="yr-col-month">{% endfor %}
+                <col class="yr-col-total">
+              </colgroup>
               <thead>
                 <tr>
                   <th scope="col" class="yr-name">Category</th>
-                  <th scope="col" class="yr-fill" title="One amount for all 12 months">All months</th>
-                  {% for name in month_names %}<th scope="col">{{ name }}</th>{% endfor %}
+                  <th scope="col" class="yr-fill" title="One amount for all 12 months">All</th>
+                  {% for name in month_names %}<th scope="col" {% if loop.index == now_month %}class="yr-now" aria-current="date"{% endif %}>{{ name }}</th>{% endfor %}
                   <th scope="col" class="yr-total">Year</th>
                 </tr>
               </thead>
               <tbody>
                 {% for row in grid.rows %}
                   {% if loop.first or loop.previtem.kind != row.kind %}
-                    <tr class="yr-sep"><th scope="colgroup" colspan="15">{{ "Expenses" if row.kind == "expense" else "Income" }}</th></tr>
+                    <tr class="yr-sep"><th scope="rowgroup" class="yr-name">{{ "Expenses" if row.kind == "expense" else "Income" }}</th><td colspan="14"></td></tr>
                   {% endif %}
                   <tr>
-                    <th scope="row" class="yr-name"><span class="yr-tag {% if row.grp %}g-{{ row.grp }}{% endif %}">{{ row.name }}</span></th>
+                    <th scope="row" class="yr-name"><span class="yr-tag {% if row.grp %}g-{{ row.grp }}{% endif %}" title="{{ row.name }}">{{ row.name }}</span></th>
                     <td class="yr-fill"><input class="cell-input" type="text" inputmode="decimal" autocomplete="off" data-fill placeholder="all" aria-label="{{ row.name }}: one plan amount for all months"></td>
                     {% for c in row.cells %}
                       {% set key = cell_key(row.id, loop.index, view.code) %}
-                      <td class="yr-cell">
+                      <td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">
                         <input class="cell-input c-plan" type="text" inputmode="decimal" autocomplete="off"
                                name="{{ key }}" value="{{ values.get(key, '') }}" placeholder="—"
                                aria-label="{{ row.name }}, {{ month_names[loop.index0] }}, plan in {{ view.symbol }}"
@@ -109,7 +114,7 @@
                   <tr class="yr-sum {% if loop.first %}yr-sum-first{% endif %}">
                     <th scope="row" class="yr-name">{{ label }}</th>
                     <td class="yr-fill"></td>
-                    {% for c in t.cells %}<td class="yr-cell">{{ read_cell(c) }}</td>{% endfor %}
+                    {% for c in t.cells %}<td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">{{ read_cell(c) }}</td>{% endfor %}
                     <td class="yr-total">{{ read_cell(t.total) }}</td>
                   </tr>
                 {% endfor %}

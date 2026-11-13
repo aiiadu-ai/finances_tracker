@@ -612,6 +612,7 @@ def render_year(
         "prev_year": year - 1 if year > 2000 else None,
         "next_year": year + 1 if year < 2099 else None,
         "month_names": MONTH_NAMES,
+        "now_month": today.month if year == today.year else None,  # the month to scroll to and mark
         "views": [
             {"code": code, "symbol": CURRENCY_SYMBOLS[code], "grid": plans.grid(conn, year, code, today, categories)}
             for code in plans.CURRENCIES

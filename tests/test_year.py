@@ -198,3 +198,28 @@ def test_year_column_compares_plan_to_date_not_the_whole_year(client):
     inc = grid()["totals"]["income"]["total"]
     assert (inc["plan"], inc["diff"], inc["state"]) == (1200000, 0, "ok")
     assert grid()["totals"]["balance"]["total"]["state"] == "ok"
+
+
+# ---------- The table is a fixed grid, and opens on the current month ----------
+def test_current_month_is_marked_only_in_the_current_year(client):
+    today = date.today()
+    page = client.get(f"/year?year={today.year}").text
+    assert page.count('class="yr-now"') == 2 and page.count("yr-cell yr-now") >= 2  # the header, once per currency
+    other = client.get(f"/year?year={today.year - 1}").text
+    assert "yr-now" not in other and 'aria-current="date"' not in other
+
+
+def test_the_grid_has_fixed_columns_and_names_that_can_be_cut(client):
+    page = client.get("/year?year=2026").text
+    assert page.count('<col class="yr-col-month">') == 24  # 12 months, per currency
+    assert '<col class="yr-col-name">' in page and '<col class="yr-col-fill">' in page and '<col class="yr-col-total">' in page
+    assert 'title="Skin &amp; body care"' in page  # the full name when the text is cut with "…"
+    assert '<th scope="rowgroup" class="yr-name">Expenses</th><td colspan="14"></td>' in page  # the group label sticks too
+    css = client.get("/static/style.css").text
+    assert "table-layout: fixed" in css and "text-overflow: ellipsis" in css and "--month-w: 68px" in css
+    assert ".yr-col-fill, .yr[data-mode=\"diff\"] .yr-col-fill, html:not(.js) .yr-col-fill { display: none; }" in css  # no column shift
+
+
+def test_script_scrolls_to_the_current_month(client):
+    js = client.get("/static/app.js").text
+    assert "scrollYearToNow" in js and "th.yr-now" in js
