@@ -92,6 +92,34 @@ def plain(amount: int | None) -> str:
 templates.env.filters["plain"] = plain
 templates.env.filters["compact"] = analytics.compact
 
+# Where a long word may break in a narrow bar chart (soft hyphens, shown as "-" only when the word breaks).
+SYLLABLES = {
+    "entertainment": "en-ter-tain-ment", "electronics": "elec-tron-ics", "education": "edu-ca-tion",
+    "transportation": "trans-por-ta-tion", "installments": "in-stall-ments", "clothing": "cloth-ing",
+    "hygiene": "hy-giene", "makeup": "make-up",
+}
+
+
+def breakable(text: str) -> str:
+    """The text with soft hyphens inside long words: the known category names by syllable, others every few letters."""
+    words = []
+    for word in str(text).split(" "):
+        key = word.lower()
+        if key in SYLLABLES:
+            parts = SYLLABLES[key].split("-")
+            out, pos = [], 0
+            for part in parts:
+                out.append(word[pos : pos + len(part)])
+                pos += len(part)
+            word = "\u00ad".join(out)
+        elif len(word) > 8:
+            word = "\u00ad".join(word[i : i + 4] for i in range(0, len(word), 4))
+        words.append(word)
+    return " ".join(words)
+
+
+templates.env.filters["breakable"] = breakable
+
 
 def asset(name: str) -> str:
     """A static file's address with its modification time on the end, so after an update the

@@ -126,7 +126,7 @@
                 {% for c in g.cats %}
                   <div class="vcol">
                     <span class="vc-plot"><span class="vc-bar" style="height: {{ c.h }}%"><span class="vc-lab"><b>{{ c.pct }}</b><span>{{ c.total|compact }}</span></span></span></span>
-                    <span class="vc-name">{{ c.name }}</span>
+                    <span class="vc-name">{{ c.name|breakable }}</span>
                   </div>
                 {% endfor %}
               </div>

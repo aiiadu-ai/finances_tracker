@@ -65,3 +65,22 @@ def test_income_is_green_and_expenses_are_red_on_home(client):
     css = client.get("/static/style.css").text
     assert ".stat-income .stat-value { color: var(--income); }" in css and ".stat-expense .stat-value { color: var(--expense); }" in css
     assert css.count("--income:") == 3 and css.count("--expense:") == 3  # light, dark by system, dark chosen by hand
+
+
+def test_long_category_names_break_by_syllable_in_the_narrow_chart():
+    from app.main import breakable
+    assert breakable("Entertainment").split("­") == ["En", "ter", "tain", "ment"]
+    assert breakable("Electronics").replace("­", "") == "Electronics"
+    assert breakable("Food") == "Food" and breakable("Skin & body care") == "Skin & body care"
+    assert "­" in breakable("Averyverylongname") and breakable("Averyverylongname").replace("­", "") == "Averyverylongname"
+
+
+def test_category_chart_has_horizontal_names_and_filled_bars_but_groups_are_outlined(client):
+    page = client.get("/analytics").text
+    css = client.get("/static/style.css").text
+    assert "vbars-cats" in page and "writing-mode: vertical-rl" not in css.split("Category bars")[1].split("Forecast")[0]
+    group_rule = css.split(".vbars-groups .vc-bar {")[1].split("}")[0]
+    assert "box-shadow" in group_rule and "var(--glow)" in group_rule and "background: var(--surface-raised)" in group_rule
+    cats_rule = css.split(".vbars-cats .vc-bar {")[1].split("}")[0]
+    assert "background: var(--fill)" in cats_rule
+    assert all(f"--fill-{g}:" in css for g in ("essentials", "fixed", "fun"))

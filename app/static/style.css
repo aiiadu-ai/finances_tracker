@@ -7,6 +7,7 @@
   --glow-essentials:#6FBF92; --glow-fixed:#6FA3D6; --glow-fun:#D68FBF;
   --success:#2E6A63; --warning:#8A5A1C; --danger:#A3361F; --focus:#3F5A5E;
   --income:#1F7A4D; --expense:#B3261E; /* the numbers of Income and Expenses (not the block behind them) */
+  --fill-essentials:#6FAE98; --fill-fixed:#5B9BC4; --fill-fun:#D985AB; /* eucalyptus, sea, rose: filled bars next to the neon glow */
   --shadow-soft:0 1px 2px rgba(43,36,34,.06), 0 8px 24px rgba(43,36,34,.08);
   --font-sans:"Onest","Segoe UI",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
@@ -21,6 +22,7 @@
     --glow-essentials:#5FAE85; --glow-fixed:#5B93C7; --glow-fun:#C47FAE;
     --success:#7FC4B8; --warning:#E0B27A; --danger:#F0A08C; --focus:#9EC0C6;
     --income:#6FD3A0; --expense:#F08A7A;
+    --fill-essentials:#7CC4AB; --fill-fixed:#6AA9D6; --fill-fun:#E394B8;
     --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     color-scheme: dark;
   }
@@ -32,6 +34,7 @@
   --glow-essentials:#5FAE85; --glow-fixed:#5B93C7; --glow-fun:#C47FAE;
   --success:#7FC4B8; --warning:#E0B27A; --danger:#F0A08C; --focus:#9EC0C6;
   --income:#6FD3A0; --expense:#F08A7A;
+  --fill-essentials:#7CC4AB; --fill-fixed:#6AA9D6; --fill-fun:#E394B8;
   --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
   color-scheme: dark;
 }
@@ -574,24 +577,39 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 .vbars-groups { gap: var(--space-4); padding-top: 34px; }
 .vbars-groups .vcol { cursor: pointer; border-radius: var(--radius-md); padding: 0 4px 6px; transition: background .15s; }
 .vbars-groups .vcol:disabled { cursor: default; opacity: .6; }
-.vbars-groups .vc-bar { width: 56%; max-width: 96px; }
+.vbars-groups .vc-bar {
+  width: 56%; max-width: 96px;
+  background: var(--surface-raised);
+  border: 1.5px solid color-mix(in srgb, var(--glow) 70%, transparent); border-bottom: 0;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--glow) 42%, transparent);
+}
 .vbars-groups .vc-lab { font-size: 13px; line-height: 17px; }
 .vbars-groups .vc-name { font-size: 14px; line-height: 18px; color: var(--ink); font-weight: 500; }
 .vbars-groups .vcol[aria-pressed="true"] { background: color-mix(in srgb, var(--glow) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--glow); }
 .vbars-groups .vcol[aria-pressed="true"] .vc-name { font-weight: 700; }
 .wm[data-open] .vbars-groups .vcol[aria-pressed="false"] .vc-bar { opacity: .45; }
 .vbars-groups .vcol:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
-/* The open group: its categories, in the same colour. */
+/* The open group: its categories. */
 .wm-detail { border-top: 1px solid var(--line); padding-top: var(--space-3); }
 .js .wm-detail:not(.open) { display: none; }
 .wm-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .wm-back { background: none; border: 0; padding: 6px 4px; font: 500 14px var(--font-sans); color: var(--accent-ink); cursor: pointer; }
 html:not(.js) .wm-back { display: none; }
-.vbars-cats .vc-name { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; max-height: 96px; overflow: hidden; text-align: left; font-size: 11px; color: var(--ink); }
-.vbars-cats .vc-bar { width: 76%; }
-.vbars-cats { padding-top: 34px; }
+/* Category bars: filled (eucalyptus / sea / rose with a soft glow). The names lie across in a box of fixed height,
+   so every bar stands on the same line and all the categories fit in one row. */
+.wm-detail.g-essentials { --fill: var(--fill-essentials); }
+.wm-detail.g-fixed { --fill: var(--fill-fixed); }
+.wm-detail.g-fun { --fill: var(--fill-fun); }
+.vbars-cats { align-items: flex-start; gap: 2px; padding-top: 34px; }
+.vbars-cats .vcol { flex: 1 1 0; min-width: 0; }
+.vbars-cats .vc-bar { width: 76%; background: var(--fill); box-shadow: 0 0 10px color-mix(in srgb, var(--fill) 40%, transparent); }
+.vbars-cats .vc-name {
+  height: 33px; overflow: hidden; text-align: center; color: var(--ink);
+  font-size: 9px; line-height: 11px; hyphens: auto; overflow-wrap: anywhere;
+}
 @media (min-width: 600px) {
-  .vbars-cats .vc-name { writing-mode: horizontal-tb; transform: none; max-height: none; text-align: center; font-size: 12px; }
+  .vbars-cats { gap: 6px; }
+  .vbars-cats .vc-name { height: 45px; font-size: 12px; line-height: 15px; }
 }
 
 /* Forecast: one line chart. */
