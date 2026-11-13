@@ -147,7 +147,7 @@ def test_a_chosen_filter_is_checked_counted_named_and_can_be_cleared(client):
     panel = on.split("flt-panel")[1].split("</details>")[0]
     assert panel.count(" checked") == 2 and f'name="cat" value="{ids["food"]}" checked' in panel and f'name="acc" value="{ids["cash"]}" checked' in panel
     assert ">2<" in on.split("flt-badge")[1][:20]                                                   # the number on "Filter"
-    assert "Showing: Food, Cash ₴" in on                                                            # visible even while the panel is closed
+    assert "Showing" not in on                                                                      # no extra line about it
     assert f'class="btn btn-outline flt-clear" href="/transactions?{MONTH}">Clear' in on
 
 
@@ -172,3 +172,12 @@ def test_an_empty_result_says_so(client):
     ids = client.ids
     assert "Nothing matches this filter." in client.get(f"/transactions?{MONTH}&cat={ids['coffee']}&acc={ids['c1']}").text
     assert "Nothing in this month yet." in client.get("/transactions?month=2020-01").text
+
+
+def test_a_bar_stands_between_the_hryvnia_and_the_euro_sum(client):
+    ids = client.ids
+    both = client.get(f"/transactions?{MONTH}&cat={ids['food']}&cat={ids['phone_cat']}").text
+    total = both.split('aria-label="Total of the entries shown"')[1].split("</p>")[0]
+    assert total.count("flt-sep") == 1 and total.index("₴") < total.index("flt-sep") < total.index("€")
+    one = client.get(f"/transactions?{MONTH}&cat={ids['food']}").text.split('aria-label="Total of the entries shown"')[1].split("</p>")[0]
+    assert "flt-sep" not in one                                                                      # nothing to part when there is one currency

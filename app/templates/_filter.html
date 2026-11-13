@@ -8,11 +8,9 @@
   </header>
 
   <p class="flt-total" aria-label="Total of the entries shown">
-    {% for code, net in flt.totals.items() %}<strong class="flt-sum">{{ (net|abs)|money(code) }}</strong>{% endfor %}
+    {% for code, net in flt.totals.items() %}{% if not loop.first %}<span class="flt-sep" aria-hidden="true">|</span>{% endif %}<strong class="flt-sum">{{ (net|abs)|money(code) }}</strong>{% endfor %}
     <span class="muted">{% if flt.totals %}· {% endif %}{{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
   </p>
-
-  {% if flt.chosen %}<p class="muted flt-chosen">Showing: {{ flt.chosen|join(", ") }}</p>{% endif %}
 
   <details class="flt-panel">
     <summary>Filter{% if flt.count %} <span class="flt-badge">{{ flt.count }}</span>{% endif %}</summary>

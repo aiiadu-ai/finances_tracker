@@ -420,11 +420,7 @@ def month_totals(rows) -> dict:
 def filter_view(conn, flt: Filter, rows, current: date) -> dict:
     """Everything the filter bar shows: the month arrows, the pills (checkboxes of a form), the sums."""
     cats = load_categories(conn)
-    chosen = []  # the names of what is chosen, for the line under "Filter"
-
     def pill(label, name, value, on):
-        if on:
-            chosen.append(label)
         return {"label": label, "name": name, "value": value, "on": on}
 
     groups = []
@@ -441,7 +437,6 @@ def filter_view(conn, flt: Filter, rows, current: date) -> dict:
         "other": other,
         "active": flt.active,
         "count": len(flt.cats) + len(flt.accs) + (1 if flt.transfers_too else 0),
-        "chosen": chosen,
         "month": f"{flt.month:%Y-%m}",
         "clear_href": "/transactions?" + flt.query(clear=True),
         "label": f"{flt.month:%B %Y}",
