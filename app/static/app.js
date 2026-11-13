@@ -312,18 +312,37 @@ document.querySelectorAll(".wm").forEach((box) => {
   show();
 })();
 
-// ---- Settings: tabs (one block at a time; the address #rules opens that tab) ----
-(function setupSettingsTabs() {
+// ---- Tabs (Settings, Home, Analytics): one block at a time ----
+// The address (#rules, #categories ...) opens that tab. Home and Analytics (data-tabs-key) also remember the last tab
+// and keep it when the month, the year or the currency link is followed.
+(function setupTabs() {
   const bar = document.querySelector(".tabs[data-open]");
   if (!bar) return;
+  const key = bar.dataset.tabsKey || "";
   const links = [...bar.querySelectorAll("[data-tab]")];
   const panels = [...document.querySelectorAll("[data-panel]")];
   // With JavaScript the tabs do the moving; without ids the browser does not scroll down to #rules.
   panels.forEach((p) => p.removeAttribute("id"));
+
+  function remembered() {
+    try { return key ? localStorage.getItem("tab:" + key) : null; } catch (e) { return null; }
+  }
+  function remember(name) {
+    try { if (key) localStorage.setItem("tab:" + key, name); } catch (e) { /* not remembered */ }
+  }
+  function carry(name) {
+    document.querySelectorAll("[data-carry-tab] a[href]").forEach((a) => {
+      a.setAttribute("href", a.getAttribute("href").split("#")[0] + "#" + name);
+    });
+  }
   function show(name) {
     if (!links.some((l) => l.dataset.tab === name)) name = links[0].dataset.tab;
     panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
     links.forEach((l) => l.setAttribute("aria-current", l.dataset.tab === name ? "page" : "false"));
+    remember(name);
+    if (key) carry(name);
+    fitNumbers(); // big numbers could not be fitted while their block was hidden
+    return name;
   }
   links.forEach((l) => l.addEventListener("click", (event) => {
     event.preventDefault();
@@ -331,7 +350,10 @@ document.querySelectorAll(".wm").forEach((box) => {
     show(l.dataset.tab);
   }));
   window.addEventListener("hashchange", () => show(location.hash.slice(1)));
-  show(location.hash.slice(1) || bar.dataset.open);
+
+  const fromAddress = location.hash.slice(1);
+  const shown = show(fromAddress || remembered() || bar.dataset.open);
+  if (key && !fromAddress) history.replaceState(null, "", "#" + shown); // the tab is always in the address
 })();
 
 // ---- Installable app: lets the phone offer "Install app" / "Add to Home Screen" as a real app ----

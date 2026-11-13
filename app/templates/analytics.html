@@ -37,13 +37,13 @@
 {% endmacro %}
 
 {% block content %}
-  <header class="month-nav">
+  <header class="month-nav" data-carry-tab>
     {% if prev_href %}<a class="round-link" href="{{ prev_href }}" aria-label="Previous">{{ icon("back") }}</a>{% else %}<span class="round-link round-link-off"></span>{% endif %}
     <h1>{{ label }}</h1>
     {% if next_href %}<a class="round-link round-next" href="{{ next_href }}" aria-label="Next">{{ icon("next") }}</a>{% else %}<span class="round-link round-link-off round-next" aria-hidden="true"></span>{% endif %}
   </header>
 
-  <div class="year-controls">
+  <div class="year-controls" data-carry-tab>
     <div class="seg seg-static" role="group" aria-label="Period">
       <a href="{{ month_href }}" {% if period == "month" %}aria-current="page"{% endif %}>Month</a>
       <a href="{{ year_href }}" {% if period == "year" %}aria-current="page"{% endif %}>Year</a>
@@ -55,12 +55,18 @@
     </div>
   </div>
 
+  <nav class="tabs" aria-label="Analytics sections" data-open="where" data-tabs-key="analytics">
+    <a href="#where" data-tab="where">Where the money goes</a>
+    <a href="#plan" data-tab="plan">Plan vs actual</a>
+  </nav>
+
   {% for view in views %}
     {% set d = view.data %}
     {% set code = view.code %}
     {% set prev_name = ("last month" if period == "month" else "last year") %}
     {% set running = d.dynamics.running %}
     <div class="cur-view" data-cur="{{ code }}">
+      <div class="tab-panel" data-panel="where">
 
       {# ---- Forecast: only for the running month ---- #}
       {% if d.forecast and "forecast" not in hidden %}
@@ -164,6 +170,8 @@
       </section>
       {% endif %}
 
+      </div>
+      <div class="tab-panel" data-panel="plan">
       {# ---- 3. Plan against reality ---- #}
       <section class="card an-card pa" data-kind="expense" aria-label="Plan against reality">
         <div class="card-head an-head">
@@ -182,6 +190,7 @@
         {% endfor %}
         <p class="an-key"><i class="key-actual"></i> Actual <i class="key-plan"></i> Plan</p>
       </section>
+      </div>
     </div>
   {% endfor %}
 {% endblock %}

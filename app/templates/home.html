@@ -40,7 +40,7 @@
 {% endmacro %}
 
 {% block content %}
-  <header class="month-nav">
+  <header class="month-nav" data-carry-tab>
     <a class="round-link" href="/?month={{ prev_month }}" aria-label="Previous month">{{ icon("back") }}</a>
     <h1>{{ month_label }}</h1>
     {% if next_month %}
@@ -63,9 +63,17 @@
     </a>
   {% endif %}
 
+  {# Tabs: one block at a time (the month and the currency above stay as they are and apply to every tab). #}
+  <nav class="tabs" aria-label="Home sections" data-open="overview" data-tabs-key="home">
+    <a href="#overview" data-tab="overview">Overview</a>
+    <a href="#categories" data-tab="categories">Categories</a>
+    <a href="#jars" data-tab="jars">Jars</a>
+  </nav>
+
   {% for view in views %}
     {% set budget = view.budget %}
     <div class="cur-view" data-cur="{{ view.code }}">
+      <div class="tab-panel" data-panel="overview">
       {% if view.all_money is not none %}
         <section class="card stat stat-hero all-money" aria-label="All money">
           <h2 class="label">All money</h2>
@@ -116,6 +124,8 @@
         </div>
       {% endif %}
 
+      </div>
+      <div class="tab-panel" data-panel="jars">
       <section class="card jars-card" aria-label="Jars">
         <div class="card-head">
           <h2 class="label">Jars</h2>
@@ -141,6 +151,8 @@
         {% endif %}
       </section>
 
+      </div>
+      <div class="tab-panel" data-panel="categories">
       <section class="budget" aria-label="Plan by category">
         <ul class="group-tiles" aria-label="By group">
           {% for g in budget.groups %}
@@ -206,6 +218,7 @@
         </section>
       </div>
       {% endif %}
+      </div>
     </div>
   {% endfor %}
 {% endblock %}
