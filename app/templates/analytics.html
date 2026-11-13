@@ -63,7 +63,7 @@
     <div class="cur-view" data-cur="{{ code }}">
 
       {# ---- Forecast: only for the running month ---- #}
-      {% if d.forecast %}
+      {% if d.forecast and "forecast" not in hidden %}
         {% set f = d.forecast %}
         {% set c = f.chart %}
         <section class="card an-card fc" aria-label="Forecast to the end of the month">
@@ -138,6 +138,7 @@
       </section>
 
       {# ---- 2. Dynamics ---- #}
+      {% if "change" not in hidden %}
       <section class="an-pair" aria-label="Change">
         <div class="card an-card">
           <h2 class="label">Expenses · {{ "this month" if period == "month" else "this year" }}{% if running %} so far{% endif %}</h2>
@@ -148,7 +149,9 @@
           {{ change(d.dynamics.income, code, true, prev_name, running) }}
         </div>
       </section>
+      {% endif %}
 
+      {% if "trend" not in hidden %}
       <section class="an-pair" aria-label="Trend by month">
         <div class="card an-card">
           <h2 class="label">Expenses by month, {{ selected_year }}</h2>
@@ -159,6 +162,7 @@
           {{ months(d.trend.income, false, "Income by month in " ~ selected_year) }}
         </div>
       </section>
+      {% endif %}
 
       {# ---- 3. Plan against reality ---- #}
       <section class="card an-card pa" data-kind="expense" aria-label="Plan against reality">

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Update the site on the server: get the new code, install what it needs, restart.
-# Run on the server:  ~/finance/deploy/update.sh
+# Run on the server:  ~/finance/deploy/update.sh            (the released version, branch main)
+#                     ~/finance/deploy/update.sh <branch>   (look at a change before it is released)
+# Running it without a branch always brings the server back to main.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+branch="${1:-main}"
 
-echo "1/3 Getting the new code..."
-git pull --ff-only
+echo "1/3 Getting the new code (branch: $branch)..."
+git fetch --quiet origin "$branch"
+git checkout --quiet -B "$branch" "origin/$branch"
 
 echo "2/3 Installing requirements..."
 .venv/bin/pip install --quiet -r requirements.txt

@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app import analytics, db
+from app import analytics, db, ui
 from app.main import app
 
 
@@ -179,7 +179,8 @@ def test_forecast_only_for_the_running_month(client):
     assert run(analytics.build, "year", date(2026, 1, 1), TODAY, "UAH")["forecast"] is None
 
 
-def test_page_renders_both_currencies_and_all_sections(client):
+def test_page_renders_both_currencies_and_all_sections(client, monkeypatch):
+    monkeypatch.setattr(ui, "HIDDEN_BLOCKS", frozenset())  # bring every hidden block back for this test
     today = date.today()
     tx(f"{today:%Y-%m}-01", "Food", 12300)
     page = client.get("/analytics").text

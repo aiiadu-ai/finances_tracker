@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app import botlogic, db, jars, mono, rules, transfers
+from app import botlogic, db, jars, mono, rules, transfers, ui
 from app.main import app
 from tgbot import bot
 
@@ -136,7 +136,8 @@ def test_sort_moves_a_line_into_transactions(conn):
     assert txs(conn)[0]["id"] == tx_id and [r["id"] for r in inbox(conn)] == [b]
 
 
-def test_people_transfers_count_separately_and_reduce_free(conn):
+def test_people_transfers_count_separately_and_reduce_free(conn, monkeypatch):
+    monkeypatch.setattr(ui, "HIDDEN_BLOCKS", frozenset({"balance", "recent"}))  # the people cards back, as before
     mono.import_lines(conn, "A", [line(1, 200000, "From mum"), line(2, -50000, "To friend"), line(3, 1000000, "Salary")])
     ids = {r["comment"]: r["id"] for r in inbox(conn)}
     rules.make_transfer(conn, ids["From mum"], "people")

@@ -636,7 +636,8 @@ html:not(.js) .an-kind { display: block; }
 .topbar-link:hover { color: var(--ink); }
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .grid-2 { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-.grid-2 .stat { grid-column: auto; padding: var(--space-4) var(--space-3); }
+.grid-2 .stat, .grid-4 .stat { grid-column: auto; padding: var(--space-4) var(--space-3); }
+.grid-4 { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .jars-card { padding: var(--space-4) var(--space-2) var(--space-2); }
 .jars-empty { padding: var(--space-2) var(--space-2) var(--space-4); }
 .jar-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-4); }
@@ -663,7 +664,8 @@ html:not(.js) .an-kind { display: block; }
   .topbar-link { display: none; }
   .jar-grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-6); }
   .grid-2 { grid-template-columns: repeat(3, 1fr); gap: var(--space-6); }
-  .grid-2 .stat { padding: var(--space-6); }
+  .grid-2 .stat, .grid-4 .stat { padding: var(--space-6); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); gap: var(--space-6); }
   .settings-card { padding: var(--space-6); }
 }
 

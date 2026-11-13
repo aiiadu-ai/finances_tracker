@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import db, ui
 from app.main import app, money, parse_amount
 
 
@@ -110,7 +110,7 @@ def test_home_shows_month_totals_per_currency_without_converting(client):
     page = client.get("/").text
     assert money(100000, "UAH") in page and money(25000, "UAH") in page
     assert money(75000, "UAH") in page  # balance
-    assert "€" not in page.split('class="grid"')[1].split("Recent")[0]  # no euros yet
+    assert "€" not in page.split('class="grid grid-4"')[1].split("Jars")[0]  # no euros yet
 
     client.post("/add", data=entry(amount="10", currency="EUR", date=today))
     page = client.get("/").text
@@ -127,7 +127,8 @@ def test_home_only_counts_the_chosen_month(client):
     assert client.get("/?month=nonsense").status_code == 200
 
 
-def test_home_recent_opens_the_transaction(client):
+def test_home_recent_opens_the_transaction(client, monkeypatch):
+    monkeypatch.setattr(ui, "HIDDEN_BLOCKS", frozenset())  # bring every hidden block back for this test
     client.post("/add", data=entry())
     tx_id = all_transactions()[0]["id"]
     assert f'href="/transactions?tx={tx_id}"' in client.get("/").text

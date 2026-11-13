@@ -151,8 +151,10 @@ def test_home_has_a_separate_full_set_of_numbers_per_currency(client):
     assert "₴" in uah and "€" not in uah
     assert "€" in eur and "₴" not in eur
     for part in (uah, eur):
-        for block in ("Balance", "Income", "Expenses", "left this month", "Essentials", "Food", "Recent"):
+        for block in ("Income", "Expenses", "In jars", "Free", "left this month", "Essentials", "Food"):
             assert block in part
+        for gone in ("Balance", "Recent"):  # hidden for now (see app/ui.py)
+            assert gone not in part
     assert 'data-cur-choice="UAH"' in page and 'data-cur-choice="EUR"' in page
 
 

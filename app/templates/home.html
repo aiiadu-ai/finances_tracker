@@ -10,6 +10,13 @@
   {% else %}✓ On plan · {{ line.left|money(line.currency) }} left{% endif %}
 {% endmacro %}
 
+{% macro stat(label, amount, code) %}
+  <section class="card stat" aria-label="{{ label }}">
+    <h2 class="label">{{ label }}</h2>
+    <p class="stat-value" data-fit>{{ amount|money(code) }}</p>
+  </section>
+{% endmacro %}
+
 {% macro arc(a) %}
   <section class="card arc-card" aria-label="Left this month">
     <p class="arc-spent">spent {{ a.percent }}%</p>
@@ -79,41 +86,33 @@
         {% endif %}
       </section>
 
-      <div class="grid">
-        <section class="card stat stat-hero" aria-label="Balance">
-          <h2 class="label">Balance</h2>
-          <p class="stat-value" data-fit>{{ view.balance|money(view.code) }}</p>
-        </section>
-        <section class="card stat" aria-label="Income">
-          <h2 class="label">Income</h2>
-          <p class="stat-value" data-fit>{{ view.income|money(view.code) }}</p>
-        </section>
-        <section class="card stat" aria-label="Expenses">
-          <h2 class="label">Expenses</h2>
-          <p class="stat-value" data-fit>{{ view.expense|money(view.code) }}</p>
-        </section>
-      </div>
+      {% if "balance" in hidden %}
+        {# Without the Balance card the four numbers sit in one block: two by two on a phone, four across on a computer. #}
+        <div class="grid grid-4">
+          {{ stat("Income", view.income, view.code) }}
+          {{ stat("Expenses", view.expense, view.code) }}
+          {{ stat("In jars", view.in_jars, view.code) }}
+          {{ stat("Free", view.free, view.code) }}
+        </div>
+      {% else %}
+        <div class="grid">
+          <section class="card stat stat-hero" aria-label="Balance">
+            <h2 class="label">Balance</h2>
+            <p class="stat-value" data-fit>{{ view.balance|money(view.code) }}</p>
+          </section>
+          {{ stat("Income", view.income, view.code) }}
+          {{ stat("Expenses", view.expense, view.code) }}
+        </div>
 
-      <div class="grid grid-2">
-        <section class="card stat" aria-label="In jars">
-          <h2 class="label">In jars</h2>
-          <p class="stat-value" data-fit>{{ view.in_jars|money(view.code) }}</p>
-        </section>
-        <section class="card stat" aria-label="Free">
-          <h2 class="label">Free</h2>
-          <p class="stat-value" data-fit>{{ view.free|money(view.code) }}</p>
-        </section>
-      </div>
-      {% if view.sent or view.received %}
         <div class="grid grid-2">
-          <section class="card stat" aria-label="Sent to people">
-            <h2 class="label">Sent to people</h2>
-            <p class="stat-value" data-fit>{{ view.sent|money(view.code) }}</p>
-          </section>
-          <section class="card stat" aria-label="Received from people">
-            <h2 class="label">Received from people</h2>
-            <p class="stat-value" data-fit>{{ view.received|money(view.code) }}</p>
-          </section>
+          {{ stat("In jars", view.in_jars, view.code) }}
+          {{ stat("Free", view.free, view.code) }}
+        </div>
+      {% endif %}
+      {% if "people" not in hidden and (view.sent or view.received) %}
+        <div class="grid grid-2">
+          {{ stat("Sent to people", view.sent, view.code) }}
+          {{ stat("Received from people", view.received, view.code) }}
         </div>
       {% endif %}
 
@@ -180,6 +179,7 @@
         </section>
       </section>
 
+      {% if "recent" not in hidden %}
       <div class="grid">
         <section class="card recent" aria-label="Recent">
           <div class="card-head">
@@ -205,6 +205,7 @@
           {% endif %}
         </section>
       </div>
+      {% endif %}
     </div>
   {% endfor %}
 {% endblock %}

@@ -58,6 +58,8 @@ The code comes from the public GitHub repo `aiiadu-ai/finances_tracker` (the ser
 
 ### How to update the site on the server after new changes
 
+`~/finance/deploy/update.sh` brings the server to the released version (branch `main`). `~/finance/deploy/update.sh <branch>` shows a change before it is released; running it again without a branch returns to `main`.
+
 1. **On the laptop**, in `~/projects/finance`: check the tests pass (`.venv/bin/python -m pytest`),
    commit, and push: `git push`.
 2. **On the server**: connect (`ssh finance-server` from the laptop; the server's address is in `~/.ssh/config`)

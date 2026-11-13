@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import access, analytics, db, jars, monthly, plans, rules, transfers, wealth
+from . import access, analytics, db, ui, jars, monthly, plans, rules, transfers, wealth
 from .env import load_env
 
 APP_DIR = Path(__file__).resolve().parent
@@ -74,7 +74,7 @@ load_env()  # OWNER_LOGIN and other settings from .env (the real environment win
 
 
 def page_context(request: Request) -> dict:
-    return {"viewer": getattr(request.state, "role", "owner") == "viewer"}
+    return {"viewer": getattr(request.state, "role", "owner") == "viewer", "hidden": ui.HIDDEN_BLOCKS}
 
 
 templates = Jinja2Templates(directory=APP_DIR / "templates", context_processors=[page_context])
