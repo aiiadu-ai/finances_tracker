@@ -1,5 +1,5 @@
 {% from "_icons.html" import icon %}
-{# The month, what the filtered entries add up to, and the filter: every pill is a link that adds / removes its choice. #}
+{# The month, what the filtered entries add up to, and the filter: choose what you want, then press Show. #}
 <div class="flt">
   <header class="flt-month">
     <a class="round-link" href="{{ flt.prev }}" aria-label="Previous month">{{ icon("back") }}</a>
@@ -8,38 +8,42 @@
   </header>
 
   <p class="flt-total" aria-label="Total of the entries shown">
-    {% if flt.totals %}
-      {% for code, net in flt.totals.items() %}<strong class="flt-sum">{{ "+" if net > 0 }}{{ net|money(code) }}</strong>{% endfor %}
-      <span class="muted">· {{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
-    {% else %}
-      <span class="muted">{{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
-    {% endif %}
+    {% for code, net in flt.totals.items() %}<strong class="flt-sum">{{ (net|abs)|money(code) }}</strong>{% endfor %}
+    <span class="muted">{% if flt.totals %}· {% endif %}{{ flt.n }} {{ "entry" if flt.n == 1 else "entries" }}</span>
   </p>
 
-  <details class="flt-panel" {% if flt.active %}open{% endif %}>
+  {% if flt.chosen %}<p class="muted flt-chosen">Showing: {{ flt.chosen|join(", ") }}</p>{% endif %}
+
+  <details class="flt-panel">
     <summary>Filter{% if flt.count %} <span class="flt-badge">{{ flt.count }}</span>{% endif %}</summary>
-    {% for g in flt.groups %}
-      <div class="flt-group{% if g.key != 'income' %} flt-tinted{% endif %}">
-        {% if g.key == 'income' %}<p class="label">{{ g.label }}</p>{% endif %}{# the three expense groups are told apart by their glow, without labels #}
+    <form method="get" action="/transactions" class="flt-form">
+      <input type="hidden" name="month" value="{{ flt.month }}">
+      {% for g in flt.groups %}
+        <div class="flt-group{% if g.key != 'income' %} flt-tinted{% endif %}">
+          {% if g.key == 'income' %}<p class="label">{{ g.label }}</p>{% endif %}{# the three expense groups are told apart by their glow, without labels #}
+          <div class="flt-pills">
+            {% for p in g.pills %}
+              <label class="fpill{% if g.key != 'income' %} g-{{ g.key }}{% endif %}"><input type="checkbox" name="{{ p.name }}" value="{{ p.value }}"{% if p.on %} checked{% endif %}><span>{{ p.label }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+      <div class="flt-group">
+        <p class="label">Accounts</p>
         <div class="flt-pills">
-          {% for p in g.pills %}
-            <a class="fpill{% if g.key != 'income' %} g-{{ g.key }}{% endif %}{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>
-          {% endfor %}
+          {% for p in flt.accounts %}<label class="fpill"><input type="checkbox" name="{{ p.name }}" value="{{ p.value }}"{% if p.on %} checked{% endif %}><span>{{ p.label }}</span></label>{% endfor %}
         </div>
       </div>
-    {% endfor %}
-    <div class="flt-group">
-      <p class="label">Accounts</p>
-      <div class="flt-pills">
-        {% for p in flt.accounts %}<a class="fpill{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>{% endfor %}
+      <div class="flt-group">
+        <p class="label">Other</p>
+        <div class="flt-pills">
+          {% for p in flt.other %}<label class="fpill"><input type="checkbox" name="{{ p.name }}" value="{{ p.value }}"{% if p.on %} checked{% endif %}><span>{{ p.label }}</span></label>{% endfor %}
+        </div>
       </div>
-    </div>
-    <div class="flt-group">
-      <p class="label">Other</p>
-      <div class="flt-pills">
-        {% for p in flt.other %}<a class="fpill{% if p.on %} on{% endif %}" href="{{ p.href }}" role="checkbox" aria-checked="{{ 'true' if p.on else 'false' }}"><span>{{ p.label }}</span></a>{% endfor %}
+      <div class="flt-actions">
+        <button class="btn btn-primary" type="submit">Show</button>
+        {% if flt.active %}<a class="btn btn-outline flt-clear" href="{{ flt.clear_href }}">Clear</a>{% endif %}
       </div>
-    </div>
-    {% if flt.active %}<a class="btn btn-outline flt-clear" href="{{ flt.clear_href }}">Clear</a>{% endif %}
+    </form>
   </details>
 </div>

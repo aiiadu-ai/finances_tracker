@@ -757,7 +757,7 @@ html:not(.js) .tabs[data-tabs-key] { display: none; } /* without JavaScript ever
 .flt-month { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .flt-title { font: 500 20px/26px var(--font-sans); margin: 0; }
 .flt-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); margin: 0; }
-.flt-sum { font: 500 20px/26px var(--font-mono); font-variant-numeric: tabular-nums; }
+.flt-sum { font: 500 22px/28px var(--font-mono); font-variant-numeric: tabular-nums; }
 .flt-panel { background: var(--surface-raised); border-radius: var(--radius-md); box-shadow: var(--shadow-soft); padding: var(--space-3) var(--space-4); }
 .flt-panel summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; gap: var(--space-2); }
 .flt-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--accent-ink); color: var(--surface-raised); font: 600 12px/1 var(--font-mono); }
@@ -765,11 +765,15 @@ html:not(.js) .tabs[data-tabs-key] { display: none; } /* without JavaScript ever
 .flt-tinted + .flt-tinted { margin-top: var(--space-2); }
 .flt-group .label { margin: 0 0 var(--space-2); }
 .flt-pills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.fpill { display: inline-flex; text-decoration: none; color: inherit; }
+.fpill { position: relative; display: inline-flex; cursor: pointer; }
+.fpill input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
 .fpill span { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; padding-inline: var(--space-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-pill); font: 500 14px/18px var(--font-sans); }
 .fpill:is(.g-essentials, .g-fixed, .g-fun) span { border-color: color-mix(in srgb, var(--glow) 70%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--glow) 38%, transparent); }
 /* Chosen: a ring and a tick, not only a colour. */
-.fpill.on span { border-color: var(--accent-ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent-ink), 0 0 10px color-mix(in srgb, var(--glow, transparent) 42%, transparent); }
-.fpill.on span::before { content: "✓"; font-family: var(--font-mono); color: var(--accent-ink); }
-.fpill:focus-visible span { outline: 2px solid var(--focus); outline-offset: 2px; }
-.flt-clear { margin-top: var(--space-4); }
+.fpill input:checked + span { border-color: var(--accent-ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent-ink), 0 0 10px color-mix(in srgb, var(--glow, transparent) 42%, transparent); }
+.fpill input:checked + span::before { content: "✓"; font-family: var(--font-mono); color: var(--accent-ink); }
+.fpill input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.flt-chosen { margin: var(--space-1) 0 0; font-size: 13px; line-height: 18px; }
+/* Show / Clear stay in view while the pills are scrolled (above the phone's bottom bar). */
+.flt-actions { position: sticky; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); display: flex; gap: var(--space-2); margin-top: var(--space-4); padding: var(--space-3) 0 var(--space-1); background: var(--surface-raised); border-top: 1px solid var(--line); }
+@media (min-width: 900px) { .flt-actions { bottom: 0; } }

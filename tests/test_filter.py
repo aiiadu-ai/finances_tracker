@@ -94,7 +94,9 @@ def test_one_or_more_categories(client):
 def test_totals_are_per_currency_income_minus_expenses(client):
     ids = client.ids
     page = client.get(f"/transactions?{MONTH}&cat={ids['food']}&cat={ids['phone_cat']}").text.replace(" ", " ").replace(" ", " ")
-    assert "−800 ₴" in page and "−15 €" in page and "3 entries" in page          # 300 + 500 and 15 €, each in its own currency
+    total = page.split('aria-label="Total of the entries shown"')[1].split("</p>")[0]
+    assert "800 ₴" in total and "15 €" in total and "3 entries" in total      # 300 + 500 and 15 €, each in its own currency
+    assert "−" not in total and "+" not in total                              # no signs up there
     assert totals(client, {"cat": [ids["salary"]]}) == {"UAH": 1000000}
 
 
@@ -128,15 +130,24 @@ def test_the_transfers_pill_brings_them_back(client):
 
 
 # ---------- The bar itself ----------
-def test_pills_are_links_that_toggle_and_the_clear_button_resets(client):
+def test_the_filter_is_a_form_you_fill_in_and_then_submit(client):
     ids = client.ids
     page = client.get(f"/transactions?{MONTH}").text
-    assert f"/transactions?{MONTH}&amp;cat={ids['food']}" in page and "Clear" not in page.split("flt-panel")[1].split("</details>")[0]  # no Clear without a filter
+    panel = page.split("flt-panel")[1].split("</details>")[0]
+    assert '<form method="get" action="/transactions" class="flt-form">' in panel and 'name="month" value="2026-11"' in panel
+    assert f'name="cat" value="{ids["food"]}"' in panel and f'name="acc" value="{ids["cash"]}"' in panel and 'name="cat" value="transfer"' in panel
+    assert panel.count(" checked") == 0 and ">Show</button>" in panel and "Clear" not in panel   # nothing chosen: no Clear
+    assert "<a class=\"fpill" not in panel                                                       # the pills are not links any more
+    assert '<details class="flt-panel">' in page                                                 # closed until opened
+
+
+def test_a_chosen_filter_is_checked_counted_named_and_can_be_cleared(client):
+    ids = client.ids
     on = client.get(f"/transactions?{MONTH}&cat={ids['food']}&acc={ids['cash']}").text
     panel = on.split("flt-panel")[1].split("</details>")[0]
-    assert panel.count('aria-checked="true"') == 2 and "flt-badge" in on and ">2<" in on.split("flt-badge")[1][:20]
-    # the chosen Food pill points at the same filter without Food; the chosen account keeps only itself
-    assert f'href="/transactions?{MONTH}&amp;acc={ids["cash"]}" role="checkbox" aria-checked="true"><span>Food' in on
+    assert panel.count(" checked") == 2 and f'name="cat" value="{ids["food"]}" checked' in panel and f'name="acc" value="{ids["cash"]}" checked' in panel
+    assert ">2<" in on.split("flt-badge")[1][:20]                                                   # the number on "Filter"
+    assert "Showing: Food, Cash ₴" in on                                                            # visible even while the panel is closed
     assert f'class="btn btn-outline flt-clear" href="/transactions?{MONTH}">Clear' in on
 
 

@@ -373,21 +373,12 @@ class Filter:
         return cls(month, cats, "transfer" in raw, accs)
 
     def query(self, **change) -> str:
-        """The address part for this filter, with changes: month=..., toggle_cat=id|"transfer", toggle_acc=id, clear=True."""
+        """The address part for this filter, with changes: month=... or clear=True (the choices are sent by the form)."""
         month, cats, tr, accs = self.month, list(self.cats), self.transfers_too, list(self.accs)
         if "month" in change:
             month = change["month"]
         if change.get("clear"):
             cats, tr, accs = [], False, []
-        if "toggle_cat" in change:
-            key = change["toggle_cat"]
-            if key == "transfer":
-                tr = not tr
-            else:
-                cats = [c for c in cats if c != key] if key in cats else sorted(cats + [key])
-        if "toggle_acc" in change:
-            key = change["toggle_acc"]
-            accs = [a for a in accs if a != key] if key in accs else sorted(accs + [key])
         parts = [f"month={month:%Y-%m}"] + [f"cat={c}" for c in cats] + (["cat=transfer"] if tr else []) + [f"acc={a}" for a in accs]
         return "&".join(parts)
 
@@ -427,29 +418,31 @@ def month_totals(rows) -> dict:
 
 
 def filter_view(conn, flt: Filter, rows, current: date) -> dict:
-    """Everything the filter bar shows: the month arrows, the pills (each a link that toggles it), the sums."""
+    """Everything the filter bar shows: the month arrows, the pills (checkboxes of a form), the sums."""
     cats = load_categories(conn)
-    chosen = set(flt.cats)
+    chosen = []  # the names of what is chosen, for the line under "Filter"
 
-    def pill(label, **toggle):
-        key = toggle.get("toggle_cat", toggle.get("toggle_acc"))
-        on = key in chosen if "toggle_cat" in toggle and key != "transfer" else (
-            flt.transfers_too if key == "transfer" else key in flt.accs)
-        return {"label": label, "on": on, "href": "/transactions?" + flt.query(**toggle)}
+    def pill(label, name, value, on):
+        if on:
+            chosen.append(label)
+        return {"label": label, "name": name, "value": value, "on": on}
 
     groups = []
     for key, label in GROUPS:
         members = [c for c in cats["expense"] if c["grp"] == key]
-        groups.append({"key": key, "label": label, "pills": [pill(c["name"], toggle_cat=c["id"]) for c in members]})
-    groups.append({"key": "income", "label": "Income", "pills": [pill(c["name"], toggle_cat=c["id"]) for c in cats["income"]]})
-    accounts = [pill(a["name"], toggle_acc=a["id"]) for a in transfers.list_accounts(conn)]
+        groups.append({"key": key, "label": label, "pills": [pill(c["name"], "cat", c["id"], c["id"] in flt.cats) for c in members]})
+    groups.append({"key": "income", "label": "Income", "pills": [pill(c["name"], "cat", c["id"], c["id"] in flt.cats) for c in cats["income"]]})
+    accounts = [pill(a["name"], "acc", a["id"], a["id"] in flt.accs) for a in transfers.list_accounts(conn)]
+    other = [pill("Transfers", "cat", "transfer", flt.transfers_too)]
     following = shift_month(flt.month, 1)
     return {
         "groups": [g for g in groups if g["pills"]],
         "accounts": accounts,
-        "other": [pill("Transfers", toggle_cat="transfer")],
+        "other": other,
         "active": flt.active,
         "count": len(flt.cats) + len(flt.accs) + (1 if flt.transfers_too else 0),
+        "chosen": chosen,
+        "month": f"{flt.month:%Y-%m}",
         "clear_href": "/transactions?" + flt.query(clear=True),
         "label": f"{flt.month:%B %Y}",
         "prev": "/transactions?" + flt.query(month=shift_month(flt.month, -1)),
