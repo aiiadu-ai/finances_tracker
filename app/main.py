@@ -386,11 +386,11 @@ def home(request: Request, month: str = ""):
             (first.isoformat(), following.isoformat()),
         ).fetchall()
         summary = monthly.month_summary(conn, first, following)
-        in_jars = jars.month_flows(conn, first, following)
         waiting = len(rules.unsorted(conn))
         people = transfers.people_flows(conn, first, following)
         start = wealth.get_start(conn)
-        money_now = wealth.all_money(conn, start) if start else None
+        standing = wealth.standing(conn, start, first, date.today())
+        money_now = standing["all_money"]
         all_jars = jars.list_jars(conn)
         recent = {
             code: conn.execute(
@@ -403,7 +403,10 @@ def home(request: Request, month: str = ""):
     # Hryvnias and euros are never added together or converted.
     views = []
     for code in monthly.CURRENCIES:
-        income, expense = totals.get(("income", code), 0), totals.get(("expense", code), 0)
+        sent, received = people[code]["sent"], people[code]["received"]
+        # Money sent to people is an expense and money received from them is income (see app/wealth.py).
+        income = totals.get(("income", code), 0) + received
+        expense = totals.get(("expense", code), 0) + sent
         views.append(
             {
                 "code": code,
@@ -411,12 +414,11 @@ def home(request: Request, month: str = ""):
                 "income": income,
                 "expense": expense,
                 "balance": income - expense,
-                "in_jars": in_jars[code],
+                "in_jars": standing["in_jars"][code],  # what lies in the jars (not the month's movement)
                 "all_money": money_now[code] if money_now else None,
-                "sent": people[code]["sent"],
-                "received": people[code]["received"],
-                # Money sent to people has really left; money received from them has arrived.
-                "free": income - expense - in_jars[code] - people[code]["sent"] + people[code]["received"],
+                "sent": sent,
+                "received": received,
+                "free": standing["free"][code] if standing["free"] else None,
                 "jars": [j for j in all_jars if j["currency"] == code],
                 "recent": recent[code],
                 "budget": monthly.currency_view(summary, code),
@@ -432,7 +434,8 @@ def home(request: Request, month: str = ""):
             "views": views,
             "waiting": waiting,
             "start_set": bool(start),
-            "together": wealth.together(money_now, start["rate"]) if start else None,
+            "together": wealth.together(money_now, start["rate"]) if start and money_now else None,
+            "standing_day": standing["cutoff"],
             "rate_text": amount_for_input(start["rate"]) if start and start["rate"] else "",
             "month": first.strftime("%Y-%m"),
         },

@@ -1,11 +1,17 @@
-"""All the money Aiia has right now, per currency: what she had at the start + everything since.
+"""All the money Aiia has, per currency: what she had at the start + everything since.
 
-start + income − expenses − sent to people + received from people (moves between her own accounts and
-jars change nothing). Hryvnias and euros are counted apart; the rate only gives one "about" line.
+Money sent to people is an expense and money received from people is income; moves between her own accounts
+and into / out of jars are neither. So, on any day:
+
+  All money = start + income + received from people − expenses − sent to people
+  In jars   = what lies in all the jars (opening + deposits − withdrawals)
+  Free      = All money − In jars     (money that is not in jars but is there)
+
+Hryvnias and euros are counted apart; the rate only gives one "about" line.
 """
 
 import re
-from datetime import date
+from datetime import date, timedelta
 
 KEYS = ("start_date", "start_UAH", "start_EUR", "rate")
 MAX_RATE = 100_000  # hundredths of a hryvnia per euro
@@ -55,21 +61,62 @@ def parse_rate(raw: str) -> int | None:
     return value or None
 
 
-def all_money(conn, start: dict) -> dict[str, int]:
+def all_money(conn, start: dict, cutoff: str | None = None) -> dict[str, int]:
+    """All the money per currency on the day `cutoff` (ISO date; empty = everything recorded)."""
     totals = {code: start[code] for code in ("UAH", "EUR")}
-    for row in conn.execute(
-        """
+    sql = """
         SELECT currency, SUM(CASE
             WHEN kind = 'income' THEN amount
             WHEN kind = 'expense' THEN -amount
             WHEN kind = 'transfer' AND counterpart = 'people' THEN CASE direction WHEN 'in' THEN amount ELSE -amount END
             ELSE 0 END) AS net
-        FROM transactions WHERE date >= ? GROUP BY currency
-        """,
-        (start["date"],),
-    ):
+        FROM transactions WHERE date >= ?"""
+    args = [start["date"]]
+    if cutoff:
+        sql += " AND date <= ?"
+        args.append(cutoff)
+    for row in conn.execute(sql + " GROUP BY currency", args):
         totals[row["currency"]] += row["net"]
     return totals
+
+
+def jars_total(conn, cutoff: str | None = None) -> dict[str, int]:
+    """What lies in all the jars (archived ones too) per currency on the day `cutoff`."""
+    total = {"UAH": 0, "EUR": 0}
+    for row in conn.execute("SELECT currency, SUM(opening) AS amount FROM jars GROUP BY currency"):
+        total[row["currency"]] += row["amount"]
+    sql = """
+        SELECT currency, SUM(CASE direction WHEN 'in' THEN amount ELSE -amount END) AS amount
+        FROM transactions WHERE kind = 'transfer' AND jar_id IS NOT NULL"""
+    args = []
+    if cutoff:
+        sql += " AND date <= ?"
+        args.append(cutoff)
+    for row in conn.execute(sql + " GROUP BY currency", args):
+        total[row["currency"]] += row["amount"]
+    return total
+
+
+def cutoff_for_month(first: date, today: date) -> date:
+    """The day to count up to for a month: its last day, or today while the month is still running."""
+    following = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
+    return min(following - timedelta(days=1), today)
+
+
+def standing(conn, start: dict | None, first: date, today: date) -> dict:
+    """In jars, All money and Free per currency at the end of the month `first` (today while it runs).
+
+    All money and Free are None before the starting day (or without a start): they can't be told.
+    """
+    cutoff = cutoff_for_month(first, today)
+    iso = cutoff.isoformat()
+    in_jars = jars_total(conn, iso)
+    result = {"cutoff": cutoff, "in_jars": in_jars, "all_money": None, "free": None}
+    if start and iso >= start["date"]:
+        everything = all_money(conn, start, iso)
+        result["all_money"] = everything
+        result["free"] = {code: everything[code] - in_jars[code] for code in everything}
+    return result
 
 
 def together(totals: dict[str, int], rate: int | None) -> int | None:

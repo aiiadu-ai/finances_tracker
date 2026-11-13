@@ -136,8 +136,10 @@ def test_sort_moves_a_line_into_transactions(conn):
     assert txs(conn)[0]["id"] == tx_id and [r["id"] for r in inbox(conn)] == [b]
 
 
-def test_people_transfers_count_separately_and_reduce_free(conn, monkeypatch):
+def test_people_transfers_are_expenses_and_income_and_move_free(conn, monkeypatch):
+    from app import wealth
     monkeypatch.setattr(ui, "HIDDEN_BLOCKS", frozenset({"balance", "recent"}))  # the people cards back, as before
+    wealth.save_start(conn, "2026-11-01", 100000, 0, None)  # 1 000 ₴ on the 1st
     mono.import_lines(conn, "A", [line(1, 200000, "From mum"), line(2, -50000, "To friend"), line(3, 1000000, "Salary")])
     ids = {r["comment"]: r["id"] for r in inbox(conn)}
     rules.make_transfer(conn, ids["From mum"], "people")
@@ -148,15 +150,16 @@ def test_people_transfers_count_separately_and_reduce_free(conn, monkeypatch):
     conn.commit()
     client = TestClient(app)
     page = flat(client.get("/?month=2026-11").text)
-    assert "Sent to people" in page and "Received from people" in page
-    # income 10 000 − 0 expenses − 0 jars − 500 sent + 2 000 received
-    assert "11 500 ₴" in page
+    # income 10 000 + 2 000 from people; expenses 500 to people
+    assert "12 000 ₴" in page and "500 ₴" in page
+    # all money 1 000 + 12 000 − 500 = 12 500; nothing in jars, so Free is the same
+    assert page.count("12 500 ₴") >= 2
     titles = flat(client.get("/transactions").text)
     assert "Sent to people" in titles and "Received from people" in titles
     assert jars.month_flows(conn, *NOV) == {"UAH": 0, "EUR": 0}  # not jar money
     text = flat(botlogic.month_text(conn, date(2026, 11, 10)))
-    assert "<b>Sent to people:</b> 500 ₴" in text and "<b>Received from people:</b> 2 000 ₴" in text
-    assert "✓ <b>Free: 11 500 ₴</b>" in text
+    assert "<b>Income:</b> 12 000 ₴" in text and "<b>Expenses:</b> 500 ₴" in text
+    assert "✓ <b>Free: 12 500 ₴</b>" in text and "Balance" not in text
 
 
 def test_accounts_transfer_needs_a_real_account_and_income_side_uses_its_own_card(conn):

@@ -109,13 +109,12 @@ def test_home_shows_month_totals_per_currency_without_converting(client):
     client.post("/add", data=entry(amount="250", date=today))
     page = client.get("/").text
     assert money(100000, "UAH") in page and money(25000, "UAH") in page
-    assert money(75000, "UAH") in page  # balance
     assert "€" not in page.split('class="grid grid-4"')[1].split("Jars")[0]  # no euros yet
 
     client.post("/add", data=entry(amount="10", currency="EUR", date=today))
     page = client.get("/").text
-    assert money(75000, "UAH") in page  # hryvnias unchanged by the euro entry
-    assert money(-1000, "EUR") in page  # euro balance on its own line
+    assert money(100000, "UAH") in page and money(25000, "UAH") in page  # hryvnias unchanged by the euro entry
+    assert money(1000, "EUR") in page  # the euro expense on its own line
 
 
 def test_home_only_counts_the_chosen_month(client):

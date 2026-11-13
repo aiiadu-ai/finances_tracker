@@ -8,7 +8,7 @@ import html
 import time
 from datetime import date
 
-from . import db, jars, monthly, rules, transfers
+from . import db, jars, monthly, rules, transfers, wealth
 from .main import CURRENCY_SYMBOLS, TX_SELECT, load_categories, money, validate
 
 CANCEL_WINDOW = 3600  # seconds: "Cancel" deletes the entry for one hour, then only the site edits it
@@ -82,7 +82,9 @@ def cancel_entry(conn, tx_id: int, made_at: float, now: float | None = None) -> 
 
 
 def month_text(conn, today: date) -> str:
-    """The short month summary for /month: per currency, income, expenses, balance, jars and free."""
+    """The short month summary for /month: per currency the month's income and expenses (money sent to people is
+    an expense, money received from people is income), what lies in the jars, and Free: the money that is
+    not in jars but is there (see app/wealth.py)."""
     first = today.replace(day=1)
     following = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
     sums = {
@@ -95,22 +97,21 @@ def month_text(conn, today: date) -> str:
             (first.isoformat(), following.isoformat()),
         )
     }
-    flows = jars.month_flows(conn, first, following)
     people = transfers.people_flows(conn, first, following)
+    standing = wealth.standing(conn, wealth.get_start(conn), first, today)
     names = {"UAH": "₴ hryvnas", "EUR": "€ euros"}
     blocks = []
     for code in monthly.CURRENCIES:
-        income, expense = sums.get(("income", code), 0), sums.get(("expense", code), 0)
-        sent, received = people[code]["sent"], people[code]["received"]
-        if code == "EUR" and not (income or expense or flows[code] or sent or received):
+        income = sums.get(("income", code), 0) + people[code]["received"]
+        expense = sums.get(("expense", code), 0) + people[code]["sent"]
+        in_jars = standing["in_jars"][code]
+        free = standing["free"][code] if standing["free"] else None
+        if code == "EUR" and not (income or expense or in_jars or free):
             continue  # euros show up only when there are some
-        balance = income - expense
-        free = balance - flows[code] - sent + received
-        people_lines = []
-        if sent:
-            people_lines.append(f"<b>Sent to people:</b> {money(sent, code)}")
-        if received:
-            people_lines.append(f"<b>Received from people:</b> {money(received, code)}")
+        if free is None:
+            last = "Free: set your starting money on the site (Settings → Money)"
+        else:
+            last = f"{'✓' if free >= 0 else '✗'} <b>Free: {money(free, code)}</b>"
         blocks.append(
             "\n".join(
                 [
@@ -118,12 +119,10 @@ def month_text(conn, today: date) -> str:
                     "",
                     f"<b>Income:</b> {money(income, code)}",
                     f"<b>Expenses:</b> {money(expense, code)}",
-                    f"<b>Balance:</b> {money(balance, code)}",
                     "",
-                    f"<b>In jars:</b> {money(flows[code], code)}",
-                    *people_lines,
+                    f"<b>In jars:</b> {money(in_jars, code)}",
                     "━━━━━━━━━━",
-                    f"{'✓' if free >= 0 else '✗'} <b>Free: {money(free, code)}</b>",
+                    last,
                 ]
             )
         )

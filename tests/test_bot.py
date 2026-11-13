@@ -88,25 +88,50 @@ def test_cancel_deposit_that_a_withdrawal_needs_is_blocked(conn):
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 2
 
 
+def start_money(conn, uah=0, eur=0, day="2026-11-01"):
+    from app import wealth
+    wealth.save_start(conn, day, uah, eur, None)
+
+
 def test_month_and_jars_text(conn):
+    start_money(conn, uah=500000)  # 5 000 ₴ on the 1st
     botlogic.save_entry(conn, TODAY, kind="income", category_id=cat_id(conn, "Salary"), currency="UAH", amount="1000")
     botlogic.save_entry(conn, TODAY, kind="expense", category_id=cat_id(conn, "Food"), currency="UAH", amount="300")
-    jar = conn.execute("INSERT INTO jars (name, currency, target) VALUES ('R&D <Home>','UAH',100000)").lastrowid
+    jar = conn.execute("INSERT INTO jars (name, currency, target, opening) VALUES ('R&D <Home>','UAH',100000, 50000)").lastrowid
     botlogic.save_entry(conn, TODAY, kind="jar", jar_id=jar, direction="in", amount="200")
     text = flat(botlogic.month_text(conn, TODAY))
+    # All money 5 000 + 1 000 − 300 = 5 700; in jars 500 + 200 = 700; Free 5 000
     assert text == (
         "<b>November 2026</b>\n"
         "₴ hryvnas\n\n"
-        "<b>Income:</b> 1 000 ₴\n<b>Expenses:</b> 300 ₴\n<b>Balance:</b> 700 ₴\n\n"
-        "<b>In jars:</b> 200 ₴\n━━━━━━━━━━\n✓ <b>Free: 500 ₴</b>"
+        "<b>Income:</b> 1 000 ₴\n<b>Expenses:</b> 300 ₴\n\n"
+        "<b>In jars:</b> 700 ₴\n━━━━━━━━━━\n✓ <b>Free: 5 000 ₴</b>"
     )
-    assert flat(botlogic.jars_text(conn)) == "<b>R&amp;D &lt;Home&gt;</b>: 200 ₴ of 1 000 ₴ · 20%"
+    assert flat(botlogic.jars_text(conn)) == "<b>R&amp;D &lt;Home&gt;</b>: 700 ₴ of 1 000 ₴ · 70%"
 
 
 def test_month_negative_free_gets_cross(conn):
+    start_money(conn, uah=10000)  # 100 ₴
     botlogic.save_entry(conn, TODAY, kind="expense", category_id=cat_id(conn, "Food"), currency="UAH", amount="365")
     text = flat(botlogic.month_text(conn, TODAY))
-    assert "<b>Balance:</b> −365 ₴" in text and "✗ <b>Free: −365 ₴</b>" in text and "€" not in text
+    assert "<b>Expenses:</b> 365 ₴" in text and "✗ <b>Free: −265 ₴</b>" in text and "€" not in text
+    assert "Balance" not in text
+
+
+def test_month_without_a_start_asks_for_it(conn):
+    botlogic.save_entry(conn, TODAY, kind="expense", category_id=cat_id(conn, "Food"), currency="UAH", amount="365")
+    text = flat(botlogic.month_text(conn, TODAY))
+    assert "<b>Expenses:</b> 365 ₴" in text and "Free: set your starting money" in text
+
+
+def test_people_count_as_expense_and_income_and_own_cards_do_not(conn):
+    start_money(conn, uah=100000)
+    conn.execute("INSERT INTO transactions (date, kind, amount, currency, direction, counterpart) VALUES ('2026-11-05','transfer',20000,'UAH','out','people')")
+    conn.execute("INSERT INTO transactions (date, kind, amount, currency, direction, counterpart) VALUES ('2026-11-06','transfer',50000,'UAH','in','people')")
+    conn.execute("INSERT INTO transactions (date, kind, amount, currency, direction, counterpart) VALUES ('2026-11-07','transfer',70000,'UAH','out','accounts')")
+    text = flat(botlogic.month_text(conn, TODAY))
+    assert "<b>Income:</b> 500 ₴" in text and "<b>Expenses:</b> 200 ₴" in text  # from / to people only
+    assert "✓ <b>Free: 1 300 ₴</b>" in text  # 1 000 + 500 − 200; the move between own cards changes nothing
 
 
 def test_no_jars_text(conn):

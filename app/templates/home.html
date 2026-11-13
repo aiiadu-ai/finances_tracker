@@ -13,7 +13,7 @@
 {% macro stat(label, amount, code, tone="") %}
   <section class="card stat{% if tone %} stat-{{ tone }}{% endif %}" aria-label="{{ label }}">
     <h2 class="label">{{ label }}</h2>
-    <p class="stat-value" data-fit>{{ amount|money(code) }}</p>
+    <p class="stat-value" data-fit>{% if amount is none %}—{% else %}{{ amount|money(code) }}{% endif %}</p>
   </section>
 {% endmacro %}
 
