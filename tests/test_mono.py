@@ -355,19 +355,24 @@ def test_bot_category_remember_and_skip(conn):
 
 
 def test_bot_people_and_account_choice(conn):
-    cash = conn.execute("INSERT INTO accounts (name) VALUES ('Cash')").lastrowid
+    cash = transfers.cash_account(conn, "UAH")        # made with the database: Cash ₴ (and Cash €)
     mono.import_lines(conn, "A", [line(1, -25000, "To Anna"), line(2, -9000, "To cash"), line(3, 5000, "From cash")])
     conn.commit()
     anna, tocash, fromcash = (r["id"] for r in inbox(conn))
     ctx = Ctx()
     assert "→ Sent to people" in press(ctx, f"mp:{anna}").shown
-    ask = press(ctx, f"ma:{tocash}")  # money left a card: which account?
+    ask = press(ctx, f"ma:{tocash}")  # money left a card: which account did it go to? (only ₴ accounts are offered)
     assert ask.shown == "Which account did the money go to?"
     assert [b.callback_data for row in ask.markup.inline_keyboard for b in row] == [f"mc:{tocash}:{cash}"]
-    assert "→ To Cash" in press(ctx, f"mc:{tocash}:{cash}").shown
-    assert "→ To " in press(ctx, f"ma:{fromcash}").shown  # arrived here: no question
+    assert "→ To Cash ₴" in press(ctx, f"mc:{tocash}:{cash}").shown
+    came = press(ctx, f"ma:{fromcash}")                # money arrived on a card: where did it come from?
+    assert came.shown == "Where did the money come from?"
+    assert [b.callback_data for row in came.markup.inline_keyboard for b in row] == [f"mf:{fromcash}:{cash}", f"mf:{fromcash}:0"]
+    assert "→ From Cash ₴" in press(ctx, f"mf:{fromcash}:{cash}").shown
     with db.connection() as d:
         assert inbox(d) == [] and {t["counterpart"] for t in txs(d)} == {"people", "accounts"}
+        back = d.execute("SELECT * FROM transactions WHERE external_id = 'A:s3'").fetchone()
+        assert back["from_account_id"] == cash and back["direction"] == "in"
 
 
 def test_bot_sort_command_walks_through(conn):

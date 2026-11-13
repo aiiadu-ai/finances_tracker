@@ -131,18 +131,24 @@ def notify(client) -> None:
         conn.executemany("UPDATE inbox SET notified = 1 WHERE id = ?", [(i,) for i in waiting])
 
 
-def add_card_accounts(info: dict, accounts: list[str]) -> None:
-    """Make an account for every card named in .env that has none yet (named by its card number)."""
+def add_card_accounts(info: dict, accounts: list[str], now: int | None = None) -> None:
+    """For every card named in .env: make its account if there is none (named by its card number), and write what the
+    bank says it holds (its own money: a credit limit is taken off) and in which currency."""
     cards = {acc["id"]: acc for acc in info.get("accounts", [])}
+    now = int(time.time()) if now is None else now
     with db.connection() as conn:
         for account in accounts:
-            if conn.execute("SELECT 1 FROM accounts WHERE mono_id = ?", (account,)).fetchone():
-                continue
             acc = cards.get(account, {})
-            cur = {980: "₴", 978: "€"}.get(acc.get("currencyCode"), "")
-            card = (acc.get("maskedPan") or [""])[0][-4:]
-            name = " ".join(x for x in ("Mono", acc.get("type", "").capitalize(), f"·{card}" if card else "", cur) if x)
-            transfers.ensure_mono_account(conn, account, name or f"Mono {account[:4]}")
+            currency = {980: "UAH", 978: "EUR"}.get(acc.get("currencyCode"))
+            if not conn.execute("SELECT 1 FROM accounts WHERE mono_id = ?", (account,)).fetchone():
+                sign = {"UAH": "₴", "EUR": "€"}.get(currency, "")
+                card = (acc.get("maskedPan") or [""])[0][-4:]
+                name = " ".join(x for x in ("Mono", acc.get("type", "").capitalize(), f"·{card}" if card else "", sign) if x)
+                transfers.ensure_mono_account(conn, account, name or f"Mono {account[:4]}", currency)
+            elif currency:
+                transfers.ensure_mono_account(conn, account, "", currency)  # fills the currency of an older card
+            if acc.get("balance") is not None:
+                transfers.set_card_balance(conn, account, int(acc["balance"]) - int(acc.get("creditLimit") or 0), now)
 
 
 def log(*parts) -> None:
@@ -173,7 +179,7 @@ def main() -> None:
                 print(f"Reading {len(accounts)} card(s). Monobank allows one request a minute, so this takes a few minutes...", flush=True)
             pause()
             info = get(client, token, "/personal/client-info")
-            add_card_accounts(info, accounts)
+            add_card_accounts(info, accounts, now)
             with db.connection() as conn:  # new Monobank jars become site jars; which jars changed since last time
                 jars_to_read = mono.sync_jars(conn, info.get("jars", []), now)
             for account in accounts:

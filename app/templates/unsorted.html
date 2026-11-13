@@ -19,10 +19,10 @@
               <option value="">Choose a category…</option>
               {% for c in tx.categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
             </select>
-            {% if tx.kind == "expense" and accounts %}
-              <select class="input select" name="account_id" aria-label="Account the money went to">
-                <option value="">If between my accounts: went to…</option>
-                {% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+            {% if tx.accounts %}
+              <select class="input select" name="account_id" aria-label="{{ 'Account the money went to' if tx.kind == 'expense' else 'Account the money came from' }}">
+                <option value="">{{ "If between my accounts: went to…" if tx.kind == "expense" else "If between my accounts: came from…" }}</option>
+                {% for a in tx.accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
               </select>
             {% endif %}
             {% if tx.comment %}

@@ -83,18 +83,25 @@
 
   <section class="card settings-card" id="accounts" data-panel="accounts" aria-label="My accounts">
     <h2 class="label">My accounts</h2>
-    <p class="muted hint">Where your money lies. When you mark a bank entry as a transfer between your accounts, you choose one of these as the place the money went to. Monobank cards are added by themselves; you can rename them.</p>
+    <p class="muted hint">Monobank cards are added by themselves and show what the bank says. Cash is counted by you: say how much of it there was on a day (it counts only entries from that day on; it does not change “All money”). Entries you make on the site or in the bot are cash.</p>
     {% if accounts %}
       <ul class="set-list">
         {% for a in accounts %}
-          <li class="set-row">
+          <li class="set-row acc-set">
             <form class="set-form" method="post" action="/settings/accounts/{{ a.id }}">
               <input class="input" name="name" type="text" maxlength="40" value="{{ a.name }}" aria-label="Account name">
+              {% if a.kind == "card" %}
+                <span class="muted acc-note">Monobank card{% if a.currency %} · {{ "₴" if a.currency == "UAH" else "€" }}{% endif %} · the balance comes from the bank</span>
+              {% else %}
+                <span class="muted acc-note">{{ "Cash" if a.kind == "cash" else "Account" }} · {{ "₴" if a.currency == "UAH" else "€" if a.currency == "EUR" else "no currency" }}</span>
+                <input class="input" name="opening" type="text" inputmode="decimal" value="{{ a.opening_text }}" placeholder="Had (0)" aria-label="How much there was on that day">
+                <input class="input" name="opening_date" type="date" value="{{ a.opening_date or '' }}" aria-label="On that day">
+              {% endif %}
               <button class="btn btn-outline" type="submit">Save</button>
             </form>
             {% if a.archived %}
               <form method="post" action="/settings/accounts/{{ a.id }}/restore"><button class="btn btn-outline" type="submit">Restore</button></form>
-            {% else %}
+            {% elif a.kind != "cash" %}
               <form method="post" action="/settings/accounts/{{ a.id }}/archive"><button class="btn btn-outline" type="submit">Archive</button></form>
             {% endif %}
           </li>
@@ -102,7 +109,9 @@
       </ul>
     {% endif %}
     <form class="set-form set-add" method="post" action="/settings/accounts/add">
-      <input class="input" name="name" type="text" maxlength="40" placeholder="New account (Agricole, Cash…)" aria-label="New account">
+      <input class="input" name="name" type="text" maxlength="40" placeholder="New account" aria-label="New account">
+      <select class="input select" name="currency" aria-label="Currency"><option value="UAH">₴</option><option value="EUR">€</option></select>
+      <select class="input select" name="kind" aria-label="Type"><option value="cash">Cash</option><option value="other">Other</option></select>
       <button class="btn btn-primary" type="submit">Add</button>
     </form>
   </section>

@@ -98,9 +98,8 @@ def test_chosen_group_has_no_outline_around_the_column(client):
 def test_home_has_overview_categories_and_jars_tabs(client):
     page = client.get("/").text
     assert 'data-tabs-key="home"' in page and 'data-open="overview"' in page
-    for tab in ("overview", "categories", "jars"):
+    for tab in ("overview", "categories", "jars", "accounts"):
         assert f'data-tab="{tab}"' in page and page.count(f'data-panel="{tab}"') == 2  # one panel per currency view
-    assert "Accounts" not in page.split('aria-label="Home sections"')[1].split("</nav>")[0]  # that tab comes with the accounts item
     overview = page.split('data-panel="overview"')[1].split('data-panel="jars"')[0]
     assert 'aria-label="All money"' not in overview or "All money" in overview  # money block belongs to the first tab
     assert 'aria-label="Income"' in overview and 'aria-label="Jars"' not in overview and 'aria-label="Categories"' not in overview

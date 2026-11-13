@@ -68,6 +68,7 @@
     <a href="#overview" data-tab="overview">Overview</a>
     <a href="#categories" data-tab="categories">Categories</a>
     <a href="#jars" data-tab="jars">Jars</a>
+    <a href="#accounts" data-tab="accounts">Accounts</a>
   </nav>
 
   {% for view in views %}
@@ -151,6 +152,27 @@
         {% endif %}
       </section>
 
+      </div>
+      <div class="tab-panel" data-panel="accounts">
+        <section class="card accounts-card" aria-label="Accounts">
+          <div class="card-head">
+            <h2 class="label">Accounts</h2>
+            <a class="more" href="/settings#accounts">Settings</a>
+          </div>
+          {% if view.accounts %}
+            <ul class="acc-list">
+              {% for a in view.accounts %}
+                <li class="acc-row">
+                  <span class="acc-name">{{ a.name }}</span>
+                  <span class="acc-sum">{% if a.balance is none %}—{% else %}{{ a.balance|money(view.code) }}{% endif %}</span>
+                  <span class="muted acc-at">{% if a.kind == "card" %}{% if a.at %}bank · updated {{ a.at|updated }}{% else %}bank · not read yet{% endif %}{% else %}counted by you{% endif %}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No {{ view.symbol }} accounts yet.</p>
+          {% endif %}
+        </section>
       </div>
       <div class="tab-panel" data-panel="categories">
       <section class="budget" aria-label="Plan by category">

@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     -- accounts; account_id is the account the money arrived in). Every non-transfer has a category.
     counterpart TEXT CHECK (counterpart IN ('people', 'accounts')),
     account_id  INTEGER REFERENCES accounts (id),
+    -- Between her own accounts: the account the money came from (for a line that arrived on a card).
+    from_account_id INTEGER REFERENCES accounts (id),
     CHECK (kind = 'transfer' OR counterpart IS NULL),
     CHECK ((kind = 'transfer') = (category_id IS NULL)),
     CHECK (kind <> 'transfer' OR (jar_id IS NOT NULL) <> (counterpart IS NOT NULL))
@@ -128,10 +130,18 @@ CREATE TABLE IF NOT EXISTS rules (
 
 -- Aiia's own places where money lies (cards, cash...). The Monobank cards are added by the sync.
 CREATE TABLE IF NOT EXISTS accounts (
-    id       INTEGER PRIMARY KEY,
-    name     TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    mono_id  TEXT UNIQUE,
-    archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    mono_id      TEXT UNIQUE,
+    currency     TEXT CHECK (currency IN ('UAH', 'EUR')),
+    kind         TEXT NOT NULL DEFAULT 'other' CHECK (kind IN ('card', 'cash', 'other')),
+    -- Cash and other hand-kept accounts: what was in it on opening_date. A Monobank card (kind 'card') has no
+    -- opening: its balance is what the bank says (balance, at balance_at = unix time of the reading).
+    opening      INTEGER NOT NULL DEFAULT 0,
+    opening_date TEXT,
+    balance      INTEGER,
+    balance_at   INTEGER,
+    archived     INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))
 );
 
 -- Bank lines waiting for a category. They are NOT transactions yet: nothing counts them until sorted.
@@ -183,6 +193,46 @@ def connection():
             yield conn
     finally:
         conn.close()
+
+
+def migrate_accounts(conn) -> None:
+    """Accounts get a currency, a kind and an opening balance; transactions get from_account_id.
+    Cash accounts (one per currency) are made, and the entries from the site and the bot go to them."""
+    account_columns = {row["name"] for row in conn.execute("PRAGMA table_info(accounts)")}
+    for name, ddl in (
+        ("currency", "TEXT CHECK (currency IN ('UAH', 'EUR'))"),
+        ("kind", "TEXT NOT NULL DEFAULT 'other' CHECK (kind IN ('card', 'cash', 'other'))"),
+        ("opening", "INTEGER NOT NULL DEFAULT 0"),
+        ("opening_date", "TEXT"),
+        ("balance", "INTEGER"),
+        ("balance_at", "INTEGER"),
+    ):
+        if name not in account_columns:
+            conn.execute(f"ALTER TABLE accounts ADD COLUMN {name} {ddl}")
+    tx_columns = {row["name"] for row in conn.execute("PRAGMA table_info(transactions)")}
+    if "from_account_id" not in tx_columns:
+        conn.execute("ALTER TABLE transactions ADD COLUMN from_account_id INTEGER REFERENCES accounts (id)")
+    conn.execute("UPDATE accounts SET kind = 'card' WHERE mono_id IS NOT NULL AND kind = 'other'")
+    # The cash accounts: an existing account called Cash is taken as the hryvnia cash; the euro one is made.
+    start = conn.execute("SELECT value FROM meta WHERE key = 'start_date'").fetchone()
+    day = start["value"] if start else None
+    for currency, label in (("UAH", "Cash ₴"), ("EUR", "Cash €")):
+        have = conn.execute("SELECT id FROM accounts WHERE kind = 'cash' AND currency = ?", (currency,)).fetchone()
+        if have:
+            continue
+        old = conn.execute("SELECT id FROM accounts WHERE lower(name) = 'cash' AND mono_id IS NULL AND kind = 'other'").fetchone() if currency == "UAH" else None
+        if old:
+            conn.execute("UPDATE accounts SET kind = 'cash', currency = 'UAH', opening_date = COALESCE(opening_date, ?) WHERE id = ?", (day, old["id"]))
+        else:
+            conn.execute("INSERT INTO accounts (name, kind, currency, opening_date) VALUES (?, 'cash', ?, ?)", (label, currency, day))
+    for row in conn.execute("SELECT id, currency FROM accounts WHERE kind = 'cash'").fetchall():
+        conn.execute(
+            """
+            UPDATE transactions SET account_id = ? WHERE account_id IS NULL AND currency = ? AND source IN ('site', 'telegram')
+              AND (kind IN ('income', 'expense') OR (kind = 'transfer' AND jar_id IS NOT NULL))
+            """,
+            (row["id"], row["currency"]),
+        )
 
 
 def move_budgets_into_plans(conn) -> None:
@@ -260,6 +310,7 @@ def init_db() -> None:
         if "transfer" not in rule_columns:
             conn.execute("ALTER TABLE rules ADD COLUMN transfer TEXT CHECK (transfer IN ('people', 'accounts'))")
             conn.execute("ALTER TABLE rules ADD COLUMN account_id INTEGER REFERENCES accounts (id)")
+        migrate_accounts(conn)
         move_budgets_into_plans(conn)
         move_waiting_to_inbox(conn)
         rebuild_transactions(conn)

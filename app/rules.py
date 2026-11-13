@@ -86,7 +86,7 @@ def unsorted(conn, exclude=()) -> list[dict]:
 
 
 def file_entry(conn, inbox_id: int, category_id: int | None = None, counterpart: str | None = None,
-               account_id: int | None = None) -> int | None:
+               account_id: int | None = None, from_account_id: int | None = None) -> int | None:
     """Move a waiting line into the transactions, as a category entry or as a transfer. Returns the new id."""
     row = conn.execute("SELECT * FROM inbox WHERE id = ?", (inbox_id,)).fetchone()
     if row is None:
@@ -95,16 +95,18 @@ def file_entry(conn, inbox_id: int, category_id: int | None = None, counterpart:
     if counterpart:
         direction = "in" if row["kind"] == "income" else "out"
         if counterpart == "people":
-            account_id = None
-        elif row["kind"] == "income":  # the money arrived on this very card
+            account_id = from_account_id = None
+        elif row["kind"] == "income":  # the money arrived on this very card; from_account_id says where it came from
             account_id = transfers.account_of_line(conn, row["external_id"])
+        else:  # it left this card; account_id says where it went
+            from_account_id = None
     new_id = conn.execute(
         """
-        INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, external_id, direction, counterpart, account_id)
-        VALUES (?, ?, ?, ?, ?, ?, 'mono', ?, ?, ?, ?)
+        INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, external_id, direction, counterpart, account_id, from_account_id)
+        VALUES (?, ?, ?, ?, ?, ?, 'mono', ?, ?, ?, ?, ?)
         """,
         (row["date"], "transfer" if counterpart else row["kind"], category_id, row["amount"], row["currency"],
-         row["comment"], row["external_id"], direction, counterpart, account_id),
+         row["comment"], row["external_id"], direction, counterpart, account_id, from_account_id),
     ).lastrowid
     conn.execute("DELETE FROM inbox WHERE id = ?", (inbox_id,))
     return new_id
@@ -137,13 +139,25 @@ def sort_entry(conn, inbox_id: int, category_id: int) -> tuple[str, int] | None:
     return cat["name"], file_entry(conn, inbox_id, category_id=category_id)
 
 
-def make_transfer(conn, inbox_id: int, counterpart: str, account_id: int | None = None) -> int | None:
-    """A waiting line is a transfer to / from people, or between her own accounts. Returns the new id."""
+def usable_account(conn, account_id: int | None, currency: str) -> bool:
+    """An account that exists, is not archived and holds this currency (an account with no currency fits any)."""
+    row = conn.execute("SELECT currency FROM accounts WHERE id = ? AND archived = 0", (account_id,)).fetchone()
+    return row is not None and row["currency"] in (None, currency)
+
+
+def make_transfer(conn, inbox_id: int, counterpart: str, account_id: int | None = None,
+                  from_account_id: int | None = None) -> int | None:
+    """A waiting line is a transfer to / from people, or between her own accounts: account_id is where the money went
+    (a line that left a card), from_account_id where it came from (a line that arrived on a card). Returns the new id."""
     if counterpart not in COUNTERPARTS:
         return None
-    if account_id is not None and not conn.execute("SELECT 1 FROM accounts WHERE id = ? AND archived = 0", (account_id,)).fetchone():
+    line = conn.execute("SELECT currency FROM inbox WHERE id = ?", (inbox_id,)).fetchone()
+    if line is None:
         return None
-    return file_entry(conn, inbox_id, counterpart=counterpart, account_id=account_id)
+    for account in (account_id, from_account_id):
+        if account is not None and not usable_account(conn, account, line["currency"]):
+            return None
+    return file_entry(conn, inbox_id, counterpart=counterpart, account_id=account_id, from_account_id=from_account_id)
 
 
 def apply_rule(conn, inbox_id: int, rule: dict) -> bool:

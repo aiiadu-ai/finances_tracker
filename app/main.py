@@ -2,7 +2,7 @@
 
 import re
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from itertools import groupby
 from pathlib import Path
 from urllib.parse import quote as quote_url, urlsplit
@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import access, analytics, db, ui, jars, monthly, plans, rules, transfers, wealth
+from . import mono as mono_module
 from .env import load_env
 
 APP_DIR = Path(__file__).resolve().parent
@@ -99,6 +100,17 @@ def floor100(amount):
 
 
 templates.env.filters["floor100"] = floor100
+
+
+def updated_at(unix) -> str:
+    """When the bank was last asked: "10:42" today, "12 Nov 10:42" another day (Kyiv time)."""
+    if not unix:
+        return ""
+    moment = datetime.fromtimestamp(int(unix), mono_module.TZ)
+    return f"{moment:%H:%M}" if moment.date() == datetime.now(mono_module.TZ).date() else f"{moment.day} {moment:%b %H:%M}"
+
+
+templates.env.filters["updated"] = updated_at
 
 # Where a long word may break in a narrow bar chart (soft hyphens, shown as "-" only when the word breaks).
 SYLLABLES = {
@@ -316,12 +328,14 @@ TX_SELECT = """
                         CASE t.direction WHEN 'out' THEN 'From ' ELSE 'To ' END || COALESCE(j.name, 'a jar')
                     WHEN t.counterpart = 'people' THEN
                         CASE t.direction WHEN 'in' THEN 'Received from people' ELSE 'Sent to people' END
+                    WHEN t.direction = 'in' AND f.name IS NOT NULL THEN 'From ' || f.name
                     ELSE 'To ' || COALESCE(a.name, 'my account') END
            ) AS title
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN jars j ON j.id = t.jar_id
     LEFT JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN accounts f ON f.id = t.from_account_id
 """
 
 
@@ -397,6 +411,7 @@ def home(request: Request, month: str = ""):
         waiting = len(rules.unsorted(conn))
         people = transfers.people_flows(conn, first, following)
         start = wealth.get_start(conn)
+        accounts_now = transfers.accounts_overview(conn)
         standing = wealth.standing(conn, start, first, date.today())
         money_now = standing["all_money"]
         all_jars = jars.list_jars(conn)
@@ -427,6 +442,7 @@ def home(request: Request, month: str = ""):
                 "sent": sent,
                 "received": received,
                 "free": standing["free"][code] if standing["free"] else None,
+                "accounts": accounts_now[code],
                 "jars": [j for j in all_jars if j["currency"] == code],
                 "recent": recent[code],
                 "budget": monthly.currency_view(summary, code),
@@ -479,10 +495,10 @@ def add_submit(request: Request, form: dict = Depends(tx_form)):
             )
         cursor = conn.execute(
             """
-            INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, jar_id, direction, paid_uah)
-            VALUES (:date, :kind, :category_id, :amount, :currency, :comment, 'site', :jar_id, :direction, :paid_uah)
+            INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, jar_id, direction, paid_uah, account_id)
+            VALUES (:date, :kind, :category_id, :amount, :currency, :comment, 'site', :jar_id, :direction, :paid_uah, :account_id)
             """,
-            clean,
+            {**clean, "account_id": transfers.cash_account(conn, clean["currency"])},  # by hand = cash
         )
         low = jars.negative(conn, [clean["jar_id"]])
         if low:  # a withdrawal bigger than what is in the jar: undo it
@@ -534,10 +550,11 @@ def edit_submit(request: Request, tx_id: int, form: dict = Depends(tx_form)):
             """
             UPDATE transactions
             SET date = :date, kind = :kind, category_id = :category_id, amount = :amount, currency = :currency,
-                comment = :comment, jar_id = :jar_id, direction = :direction, paid_uah = :paid_uah
+                comment = :comment, jar_id = :jar_id, direction = :direction, paid_uah = :paid_uah,
+                account_id = CASE WHEN source IN ('site', 'telegram') THEN :account_id ELSE account_id END
             WHERE id = :id
             """,
-            {**clean, "id": tx_id},
+            {**clean, "id": tx_id, "account_id": transfers.cash_account(conn, clean["currency"])},
         )
         low = jars.negative(conn, [clean["jar_id"], tx["jar_id"]])
         if low:
@@ -946,7 +963,7 @@ def render_settings(request: Request, conn, error: str = "", saved: str = "", st
             "quotes": conn.execute("SELECT id, text FROM quotes ORDER BY id").fetchall(),
             "rules": rules.list_rules(conn),
             "money": money_values(conn, money_form),
-            "accounts": transfers.list_accounts(conn, archived=None),
+            "accounts": [{**a, "opening_text": amount_for_input(a["opening"]) if a["opening"] else ""} for a in transfers.list_accounts(conn, archived=None)],
             "max_pattern": rules.MAX_PATTERN,
             "groups": GROUPS,
             "error": error,
@@ -1068,13 +1085,18 @@ def quote_delete(quote_id: int):
 # ---------- Bank lines that wait for a category ----------
 def unsorted_rows(conn):
     cats = load_categories(conn)
-    return [{**line, "categories": cats[line["kind"]]} for line in rules.unsorted(conn)]
+    rows = []
+    for line in rules.unsorted(conn):
+        own = transfers.account_of_line(conn, line["external_id"])  # a line is never a move to / from its own card
+        options = [a for a in transfers.list_accounts(conn, currency=line["currency"]) if a["id"] != own]
+        rows.append({**line, "categories": cats[line["kind"]], "accounts": options})
+    return rows
 
 
 def render_unsorted(request: Request, conn, saved: str = "", error: str = "", status_code: int = 200):
     return templates.TemplateResponse(
         request, "unsorted.html",
-        {"rows": unsorted_rows(conn), "accounts": transfers.list_accounts(conn), "saved": saved, "error": error},
+        {"rows": unsorted_rows(conn), "saved": saved, "error": error},
         status_code=status_code,
     )
 
@@ -1091,17 +1113,21 @@ def unsorted_save(
     account_id: str = Form(""), remember: str = Form(""),
 ):
     with db.connection() as conn:
-        line = conn.execute("SELECT kind, comment FROM inbox WHERE id = ?", (line_id,)).fetchone()
+        line = conn.execute("SELECT kind, comment, currency FROM inbox WHERE id = ?", (line_id,)).fetchone()
         if line is None:  # already sorted (for example in the bot)
             return RedirectResponse("/unsorted", status_code=303)
         new_id, error = None, ""
         if action == "people":
             new_id = rules.make_transfer(conn, line_id, "people")
         elif action == "accounts":
-            if line["kind"] == "expense" and transfers.list_accounts(conn) and not account_id.isdigit():
+            chosen = int(account_id) if account_id.isdigit() else None
+            if line["kind"] == "expense" and transfers.list_accounts(conn, currency=line["currency"]) and chosen is None:
                 error = "Choose the account the money went to."
-            else:
-                new_id = rules.make_transfer(conn, line_id, "accounts", int(account_id) if account_id.isdigit() else None)
+            elif line["kind"] == "expense":  # it left a card: where did it go?
+                new_id = rules.make_transfer(conn, line_id, "accounts", chosen)
+                error = "" if new_id else "That account can't be used."
+            else:  # it arrived on a card: where did it come from (empty = not one of my accounts)?
+                new_id = rules.make_transfer(conn, line_id, "accounts", None, chosen)
                 error = "" if new_id else "That account can't be used."
         else:
             got = rules.sort_entry(conn, line_id, int(category_id)) if category_id.isdigit() else None
@@ -1170,28 +1196,42 @@ def rule_delete(rule_id: int):
 
 
 @app.post("/settings/accounts/add")
-def account_add(request: Request, name: str = Form("")):
+def account_add(request: Request, name: str = Form(""), currency: str = Form("UAH"), kind: str = Form("other")):
     with db.connection() as conn:
         name, error = transfers.clean_name(conn, name)
+        if not error and currency not in CURRENCY_SYMBOLS:
+            error = "Choose ₴ or €."
         if error:
             return render_settings(request, conn, error=error, status_code=422, tab="accounts")
-        conn.execute("INSERT INTO accounts (name) VALUES (?)", (name,))
+        conn.execute(
+            "INSERT INTO accounts (name, currency, kind, opening_date) VALUES (?, ?, ?, ?)",
+            (name, currency, "cash" if kind == "cash" else "other", (wealth.get_start(conn) or {}).get("date")),
+        )
     return RedirectResponse("/settings?saved=account#accounts", status_code=303)
 
 
 def account_or_404(conn, account_id: int):
-    if conn.execute("SELECT 1 FROM accounts WHERE id = ?", (account_id,)).fetchone() is None:
+    row = conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
+    if row is None:
         raise HTTPException(status_code=404, detail="Account not found.")
+    return row
 
 
 @app.post("/settings/accounts/{account_id}")
-def account_save(request: Request, account_id: int, name: str = Form("")):
+def account_save(request: Request, account_id: int, name: str = Form(""), opening: str = Form(""), opening_date: str = Form("")):
     with db.connection() as conn:
-        account_or_404(conn, account_id)
+        account = account_or_404(conn, account_id)
         name, error = transfers.clean_name(conn, name, account_id)
+        start_amount, day = account["opening"], account["opening_date"]
+        if not error and account["kind"] != "card":  # a card's money comes from the bank; the others are counted from here
+            try:
+                start_amount = wealth.parse_money(opening)
+                day = date.fromisoformat(opening_date.strip()).isoformat() if opening_date.strip() else None
+            except ValueError:
+                error = "Check the amount (like 10000 or 450.50) and the date."
         if error:
             return render_settings(request, conn, error=error, status_code=422, tab="accounts")
-        conn.execute("UPDATE accounts SET name = ? WHERE id = ?", (name, account_id))
+        conn.execute("UPDATE accounts SET name = ?, opening = ?, opening_date = ? WHERE id = ?", (name, start_amount, day, account_id))
     return RedirectResponse("/settings?saved=account#accounts", status_code=303)
 
 

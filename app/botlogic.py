@@ -46,10 +46,10 @@ def save_entry(conn, today: date, *, kind: str, amount: str, comment: str = "", 
         return None, next(iter(errors.values()))
     cursor = conn.execute(
         """
-        INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, jar_id, direction, paid_uah)
-        VALUES (:date, :kind, :category_id, :amount, :currency, :comment, 'telegram', :jar_id, :direction, :paid_uah)
+        INSERT INTO transactions (date, kind, category_id, amount, currency, comment, source, jar_id, direction, paid_uah, account_id)
+        VALUES (:date, :kind, :category_id, :amount, :currency, :comment, 'telegram', :jar_id, :direction, :paid_uah, :account_id)
         """,
-        clean,
+        {**clean, "account_id": transfers.cash_account(conn, clean["currency"])},  # by hand = cash
     )
     low = jars.negative(conn, [clean["jar_id"]])
     if low:
@@ -165,9 +165,18 @@ def sort_message(conn, inbox_id: int) -> tuple[str, list[list[tuple[str, str]]]]
 
 
 def account_buttons(conn, inbox_id: int) -> list[list[tuple[str, str]]]:
-    """Buttons for 'which account did the money go to?'."""
-    buttons = [(a["name"], f"mc:{inbox_id}:{a['id']}") for a in transfers.list_accounts(conn)]
-    return [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    """Buttons for "which account did the money go to?" (a line that left a card) or "where did it come from?"
+    (a line that arrived on one): my accounts in the line's currency, not the card the line is on."""
+    line = conn.execute("SELECT kind, currency, external_id FROM inbox WHERE id = ?", (inbox_id,)).fetchone()
+    if line is None:
+        return []
+    own = transfers.account_of_line(conn, line["external_id"])
+    prefix = "mc" if line["kind"] == "expense" else "mf"
+    buttons = [(a["name"], f"{prefix}:{inbox_id}:{a['id']}") for a in transfers.list_accounts(conn, currency=line["currency"]) if a["id"] != own]
+    rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    if buttons and prefix == "mf":
+        rows.append([("Not one of my accounts", f"mf:{inbox_id}:0")])
+    return rows
 
 
 def inbox_summary(conn, inbox_id: int) -> str:

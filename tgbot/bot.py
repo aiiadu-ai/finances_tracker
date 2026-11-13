@@ -134,7 +134,9 @@ def do_sort(conn, kind: str, line_id: int, parts: list[str]):
         label, tx_id = (got[0], got[1]) if got else (None, None)
     elif kind == "mp":
         tx_id = rules.make_transfer(conn, line_id, "people")
-    else:  # "ma" (money arrived here, or no accounts yet) or "mc" (account chosen)
+    elif kind == "mf":  # an arrival: where it came from (0 = not one of my accounts)
+        tx_id = rules.make_transfer(conn, line_id, "accounts", None, int(parts[2]) or None)
+    else:  # "ma" (no account to choose from) or "mc" (where it went)
         tx_id = rules.make_transfer(conn, line_id, "accounts", int(parts[2]) if kind == "mc" else None)
     if not tx_id:
         return None
@@ -155,13 +157,14 @@ async def on_sort_button(query, data: str, context):
     elif kind == "ma":
         with db.connection() as conn:
             line = conn.execute("SELECT kind FROM inbox WHERE id = ?", (ref,)).fetchone()
-            accounts = botlogic.account_buttons(conn, ref) if line and line["kind"] == "expense" else []
-        if accounts:  # money left a card: which of my accounts did it go to?
-            return await query.edit_message_text("Which account did the money go to?", reply_markup=to_markup(accounts))
+            accounts = botlogic.account_buttons(conn, ref) if line else []
+        if accounts:  # which of my accounts did the money go to (it left a card) / come from (it arrived on one)?
+            ask = "Which account did the money go to?" if line["kind"] == "expense" else "Where did the money come from?"
+            return await query.edit_message_text(ask, reply_markup=to_markup(accounts))
         done = await sorted_and_ask(query, kind, ref, parts)
         if not done:
             return
-    elif kind in ("m", "mp", "mc"):
+    elif kind in ("m", "mp", "mc", "mf"):
         if not await sorted_and_ask(query, kind, ref, parts):
             return
     elif kind == "ry":
@@ -174,7 +177,7 @@ async def on_sort_button(query, data: str, context):
             await query.edit_message_text("Couldn't save a rule for that.")
     elif kind == "rn":
         await query.edit_message_text("Okay, not remembered.")
-    if kind in ("ms", "ma", "m", "mp", "mc") and context.user_data.get("sorting"):
+    if kind in ("ms", "ma", "m", "mp", "mc", "mf") and context.user_data.get("sorting"):
         await send_next_sort(message, context)
 
 
@@ -217,7 +220,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("x:"):
         return await on_cancel_entry(query, data)
-    if data.split(":")[0] in ("m", "mp", "ma", "mc", "ms", "ry", "rn"):
+    if data.split(":")[0] in ("m", "mp", "ma", "mc", "mf", "ms", "ry", "rn"):
         return await on_sort_button(query, data, context)
 
     flow = current(context)

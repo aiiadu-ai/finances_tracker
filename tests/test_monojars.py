@@ -145,7 +145,7 @@ def test_a_run_makes_the_jar_then_follows_its_deposits(conn, monkeypatch):
     conn.commit()
     sync.main()  # first run: the jar appears, nothing to read from it yet
     with db.connection() as c:
-        assert site_jar(c)["opening"] == 100000 and c.execute("SELECT name FROM accounts").fetchone()["name"] == "Mono Black ·0000 ₴"
+        assert site_jar(c)["opening"] == 100000 and c.execute("SELECT name, currency, kind, balance FROM accounts WHERE mono_id = 'CARD1'").fetchone()["name"] == "Mono Black ·0000 ₴"
     assert not any("/J1/" in call for call in bank["calls"])
 
     clock["now"] = T0 + 600
