@@ -84,3 +84,11 @@ def test_category_chart_has_horizontal_names_and_filled_bars_but_groups_are_outl
     cats_rule = css.split(".vbars-cats .vc-bar {")[1].split("}")[0]
     assert "background: var(--fill)" in cats_rule
     assert all(f"--fill-{g}:" in css for g in ("essentials", "fixed", "fun"))
+
+
+def test_chosen_group_has_no_outline_around_the_column(client):
+    css = client.get("/static/style.css").text
+    chosen = [rule for rule in css.split("}") if '.vbars-groups .vcol[aria-pressed="true"]' in rule]
+    assert chosen and not any("inset" in rule or "background" in rule for rule in chosen)
+    assert any(".vc-bar" in rule and "box-shadow" in rule for rule in chosen)  # only the bar glows more
+    assert any(".vc-lab" in rule and "var(--ink)" in rule for rule in chosen)  # and its numbers are full ink

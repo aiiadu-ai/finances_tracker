@@ -585,7 +585,10 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 }
 .vbars-groups .vc-lab { font-size: 13px; line-height: 17px; }
 .vbars-groups .vc-name { font-size: 14px; line-height: 18px; color: var(--ink); font-weight: 500; }
-.vbars-groups .vcol[aria-pressed="true"] { background: color-mix(in srgb, var(--glow) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--glow); }
+/* The chosen group: only its bar stands out (stronger glow) and its numbers stay black; the others fade.
+   No outline or tint around the column or its name. */
+.vbars-groups .vcol[aria-pressed="true"] .vc-bar { border-color: var(--glow); box-shadow: 0 0 16px color-mix(in srgb, var(--glow) 65%, transparent); }
+.vbars-groups .vcol[aria-pressed="true"] .vc-lab { color: var(--ink); }
 .vbars-groups .vcol[aria-pressed="true"] .vc-name { font-weight: 700; }
 .wm[data-open] .vbars-groups .vcol[aria-pressed="false"] .vc-bar { opacity: .45; }
 .vbars-groups .vcol:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
