@@ -92,3 +92,47 @@ def test_chosen_group_has_no_outline_around_the_column(client):
     assert chosen and not any("inset" in rule or "background" in rule for rule in chosen)
     assert any(".vc-bar" in rule and "box-shadow" in rule for rule in chosen)  # only the bar glows more
     assert any(".vc-lab" in rule and "var(--ink)" in rule for rule in chosen)  # and its numbers are full ink
+
+
+# ---------- Tabs on Home and Analytics ----------
+def test_home_has_overview_categories_and_jars_tabs(client):
+    page = client.get("/").text
+    assert 'data-tabs-key="home"' in page and 'data-open="overview"' in page
+    for tab in ("overview", "categories", "jars"):
+        assert f'data-tab="{tab}"' in page and page.count(f'data-panel="{tab}"') == 2  # one panel per currency view
+    assert "Accounts" not in page.split('aria-label="Home sections"')[1].split("</nav>")[0]  # that tab comes with the accounts item
+    overview = page.split('data-panel="overview"')[1].split('data-panel="jars"')[0]
+    assert 'aria-label="All money"' not in overview or "All money" in overview  # money block belongs to the first tab
+    assert 'aria-label="Income"' in overview and 'aria-label="Jars"' not in overview and 'aria-label="Categories"' not in overview
+    assert 'aria-label="Jars"' in page.split('data-panel="jars"')[1].split('data-panel="categories"')[0]
+    assert 'aria-label="Categories"' in page.split('data-panel="categories"')[1]
+
+
+def test_month_and_currency_controls_stay_above_the_tabs_and_carry_the_tab(client):
+    page = client.get("/").text
+    head, rest = page.split('aria-label="Home sections"')
+    assert 'class="month-nav" data-carry-tab' in head and 'data-cur-choice="UAH"' in head
+    assert "data-panel" not in head
+    analytics = client.get("/analytics").text
+    assert 'class="year-controls" data-carry-tab' in analytics and 'class="month-nav" data-carry-tab' in analytics
+
+
+def test_analytics_has_two_tabs(client):
+    page = client.get("/analytics").text
+    assert 'data-tabs-key="analytics"' in page and 'data-open="where"' in page
+    assert 'data-tab="where"' in page and 'data-tab="plan"' in page
+    assert page.count('data-panel="where"') == 2 and page.count('data-panel="plan"') == 2
+    where = page.split('data-panel="where"')[1].split('data-panel="plan"')[0]
+    assert "Where the money goes" in where and "Plan ↔ actual" not in where
+    assert 'aria-label="Plan against reality"' in page.split('data-panel="plan"')[1]
+
+
+def test_settings_tabs_keep_their_own_behaviour(client):
+    page = client.get("/settings").text
+    assert "data-tabs-key" not in page and 'data-open="expense"' in page  # no memory there: errors pick the tab
+
+
+def test_tab_script_keeps_the_address_the_memory_and_the_links(client):
+    js = client.get("/static/app.js").text
+    for needle in ('localStorage.getItem("tab:"', "data-carry-tab", "history.replaceState", "fitNumbers()"):
+        assert needle in js
