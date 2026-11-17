@@ -530,7 +530,9 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 .yr-left th, .yr-left td { border-top: 1px solid var(--line); font-weight: 600; }
 .yr-left .fc { color: var(--ink-muted); font-style: italic; font-weight: 500; }
 .yr-left .c-none { color: var(--ink-muted); font-weight: 400; }
-.yr-left .c-left, .yr-left .c-sub { display: block; }
+.yr-left .c-left, .yr-left .c-sub, .yr-left .c-plan { display: block; }
+.yr-legend-list { margin: var(--space-2) 0; padding-left: var(--space-4); }
+.yr-legend p { margin: var(--space-2) 0; }
 .yr-left .c-sub { font: 400 9.5px/12px var(--font-mono); color: var(--ink-muted); letter-spacing: -.02em; }
 .yr-left-two th, .yr-left-two td { height: 56px; }
 /* The month we are in: a soft tint and a bold name. */
