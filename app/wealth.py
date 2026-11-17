@@ -126,17 +126,50 @@ NET_SQL = """SUM(CASE
             ELSE 0 END)"""
 
 
+def remaining_plan(conn, today: date) -> dict:
+    """What the plan still expects in the running month, per currency, category by category.
+
+    For every planned category: max(plan - done so far, 0) (an expense category already over its plan expects nothing
+    more). {currency: {"income": [...], "expense": [...], "net": expected income - expected expenses}}.
+    """
+    first = today.replace(day=1)
+    out = {code: {"income": [], "expense": [], "net": 0} for code in ("UAH", "EUR")}
+    rows = conn.execute(
+        """
+        SELECT c.name, c.kind, p.currency, p.amount AS plan,
+               COALESCE((SELECT SUM(t.amount) FROM transactions t
+                         WHERE t.category_id = p.category_id AND t.currency = p.currency AND t.kind = c.kind
+                           AND t.date >= ? AND t.date <= ?), 0) AS done
+        FROM plans p JOIN categories c ON c.id = p.category_id
+        WHERE p.month = ? ORDER BY c.kind DESC, c.id
+        """,
+        (first.isoformat(), today.isoformat(), first.strftime("%Y-%m")),
+    )
+    for row in rows:
+        left = max(row["plan"] - row["done"], 0)
+        item = {"name": row["name"], "plan": row["plan"], "done": row["done"], "left": left}
+        out[row["currency"]][row["kind"]].append(item)
+        out[row["currency"]]["net"] += left if row["kind"] == "income" else -left
+    return out
+
+
 def left_at_month_end(conn, start: dict | None, year: int, today: date) -> dict | None:
-    """What is left at the end of each month of `year`, per currency (None without a start).
+    """What is left at the end of each month of `year`, per currency (None without a start), in three ways.
 
-    It is the All money of that day: start + income + received − expenses − sent (money in jars included; moves
-    between her own accounts and into / out of jars change nothing). Up to this month it is what really happened;
-    after it, the plan: the previous number + the planned income − the planned expenses of the month (a month with
-    no plan keeps the number). The chain runs on from year to year, so January starts where December ended.
-    A month before the starting day has no number.
+    The number is All money (money in jars included; moves between her own accounts and into / out of jars change
+    nothing). The chain runs on from year to year, so January starts where December ended; a month before the
+    starting day has no number.
 
-    Returns {currency: {"months": [{"value", "forecast", "together"} × 12], "year": the December cell}};
-    "together" is both currencies in hryvnias at her rate (None without a rate or without euros that month).
+    - "plan": the plan only. The start money, then month by month the planned income minus the planned expenses
+      (a month with no plan keeps the number).
+    - "actual": what really happened up to now (the running month: so far). The months to come are a forecast (≈):
+      the running month ends with what is done plus what the plan still expects of it (per category the plan minus
+      what is spent, never below 0), then the plan goes on month by month.
+    - "diff": actual minus plan, for the months that really happened.
+
+    Returns {currency: {"plan"|"actual"|"diff": {"months": [{"value", "forecast", "together"} × 12],
+    "year": the December cell}, "two": a small line is shown somewhere}}; "together" is both currencies in hryvnias
+    at her rate (None without a rate or without euros that month).
     """
     if not start:
         return None
@@ -159,25 +192,45 @@ def left_at_month_end(conn, start: dict | None, year: int, today: date) -> dict 
             """
         )
     }
-    result = {}
+    still = remaining_plan(conn, today)
+    none = {"value": None, "forecast": False}
+    series = {}
     for code in ("UAH", "EUR"):
-        value, cells = start[code], {}
+        plan_cells, actual_cells, diff_cells = {}, {}, {}
+        plan_value = real_value = start[code]
+        forecast = None  # the forecast number once the running month is behind us
         y, m = first.year, first.month
         while (y, m) <= (year, 12):
             key = f"{y}-{m:02d}"
-            forecast = key > this_month
-            value += (planned if forecast else actual).get((key, code), 0)
-            cells[(y, m)] = {"value": value, "forecast": forecast}
+            plan_value += planned.get((key, code), 0)
+            plan_cells[(y, m)] = {"value": plan_value, "forecast": False}
+            if key <= this_month:
+                real_value += actual.get((key, code), 0)
+                actual_cells[(y, m)] = {"value": real_value, "forecast": False}
+                diff_cells[(y, m)] = {"value": real_value - plan_value, "forecast": False}
+                if key == this_month:  # what this month will end with: done so far + what the plan still expects
+                    forecast = real_value + still[code]["net"]
+            else:
+                forecast = (real_value if forecast is None else forecast) + planned.get((key, code), 0)
+                real_value = forecast  # keeps the chain going if the start lies in the future
+                actual_cells[(y, m)] = {"value": forecast, "forecast": True}
             y, m = (y + 1, 1) if m == 12 else (y, m + 1)
-        months = [cells.get((year, month), {"value": None, "forecast": False}) for month in range(1, 13)]
-        result[code] = {"months": months, "year": months[11]}
+        series[code] = {
+            name: [cells.get((year, month), dict(none)) for month in range(1, 13)]
+            for name, cells in (("plan", plan_cells), ("actual", actual_cells), ("diff", diff_cells))
+        }
     # Both currencies in one number (euros at her own rate), for a small line under each month: "how much in all".
     rate = start.get("rate")
+    result = {}
     for code in ("UAH", "EUR"):
-        for i, cell in enumerate(result[code]["months"]):
-            uah, eur = result["UAH"]["months"][i]["value"], result["EUR"]["months"][i]["value"]
-            cell["together"] = together({"UAH": uah, "EUR": eur}, rate) if uah is not None and rate and eur else None
-        result[code]["year"] = result[code]["months"][11]
+        result[code] = {}
+        for name in ("plan", "actual", "diff"):
+            months = series[code][name]
+            for i, cell in enumerate(months):
+                uah, eur = series["UAH"][name][i]["value"], series["EUR"][name][i]["value"]
+                cell["together"] = together({"UAH": uah, "EUR": eur}, rate) if uah is not None and rate and eur and name != "diff" else None
+            result[code][name] = {"months": months, "year": months[11]}
+        result[code]["two"] = any(c["together"] is not None for n in ("plan", "actual") for c in series[code][n])
     return result
 
 
