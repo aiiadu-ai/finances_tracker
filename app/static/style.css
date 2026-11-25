@@ -295,6 +295,14 @@ h1 { font-weight: 500; font-size: 32px; line-height: 38px; letter-spacing: -.01e
 /* Home holds a full page of numbers per currency; only the chosen one is shown. */
 .cur-view { display: flex; flex-direction: column; gap: var(--space-6); }
 .cur-view[data-cur="EUR"] { display: none; }
+/* Year, Actual / Difference: ₴ only (euros are counted in), so the € table and the ₴ / € switch go. */
+html .yr[data-mode="actual"] .cur-view[data-cur="EUR"], html .yr[data-mode="diff"] .cur-view[data-cur="EUR"] { display: none; }
+html .yr[data-mode="actual"] .cur-view[data-cur="UAH"], html .yr[data-mode="diff"] .cur-view[data-cur="UAH"] { display: flex; }
+html[data-year-mode="actual"] .year-controls .seg-cur, html[data-year-mode="diff"] .year-controls .seg-cur { display: none; }
+html.js[data-tab="categories"] .cur-switch { display: none; } /* Home → Categories: all in ₴, no ₴ / € switch */
+.yr-fx { display: none; }
+html[data-year-mode="actual"] .yr-fx, html[data-year-mode="diff"] .yr-fx { display: block; }
+.fx-note { margin: 0; }
 html[data-cur="EUR"] .cur-view[data-cur="UAH"] { display: none; }
 html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 

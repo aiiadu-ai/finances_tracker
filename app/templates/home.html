@@ -89,7 +89,7 @@
           {{ arc(budget.arc) }}
         {% else %}
           <div class="card arc-card arc-empty">
-            <p class="muted">No {{ view.symbol }} plan for {{ month_label }} yet.</p>
+            <p class="muted">No plan for {{ month_label }} yet.</p>
             <a class="btn btn-outline" href="/year?year={{ month[:4] }}">Set the plan</a>
           </div>
         {% endif %}
@@ -175,13 +175,14 @@
         </section>
       </div>
       <div class="tab-panel" data-panel="categories">
+      {% include "_fx_note.html" %}
       <section class="budget" aria-label="Plan by category">
         <ul class="group-tiles" aria-label="By group">
           {% for g in budget.groups %}
             <li class="grp-tile g-{{ g.key }}">
               <span class="label">{{ g.label }}</span>
               <span class="grp-nums">
-                <b>{{ g.line.spent|money(view.code) }}</b>{% if g.line.limit %} <span class="muted">/ {{ g.line.limit|money(view.code) }}</span>{% endif %}
+                <b>{{ g.line.spent|money("UAH") }}</b>{% if g.line.limit %} <span class="muted">/ {{ g.line.limit|money("UAH") }}</span>{% endif %}
               </span>
             </li>
           {% endfor %}
@@ -201,7 +202,7 @@
               <li class="cat-row {% if row.grp %}g-{{ row.grp }}{% endif %}">
                 <span class="cat-name">{{ row.name }}</span>
                 <div class="cat-line">
-                  <span class="cat-nums{% if not l.spent %} muted{% endif %}">{{ l.spent|money(view.code) }}{% if l.limit %} <span class="muted">/ {{ l.limit|money(view.code) }}</span>{% endif %}</span>
+                  <span class="cat-nums{% if not l.spent %} muted{% endif %}">{{ l.spent|money("UAH") }}{% if l.limit %} <span class="muted">/ {{ l.limit|money("UAH") }}</span>{% endif %}</span>
                   {% if l.limit %}
                     <span class="bar s-{{ l.state }}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ l.pct }}"><span style="width: {{ l.pct }}%"></span></span>
                     <span class="cat-state s-{{ l.state }}">{{ state_text(l) }}</span>

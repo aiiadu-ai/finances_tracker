@@ -1,7 +1,7 @@
 """Monobank statement lines -> entries. No network here (see monosync/); it only reads lines and writes rows.
 
 Plus is income, minus is expense, in the card's own currency (₴ or €; other currencies are skipped,
-nothing is ever converted). Each line has the bank's own id, so a line is never saved twice.
+nothing is ever converted). A line's `amount` is in the card's currency even when it paid in another one. Each line has the bank's own id, so a line is never saved twice.
 A line goes through Aiia's rules; if none fits it waits in the inbox, where nothing counts it yet.
 If the same amount leaves one of her cards and arrives on another, both are transfers between accounts.
 """
@@ -33,12 +33,22 @@ def find_partner(conn, account: str, kind: str, amount: int, currency: str, day:
     ).fetchone()
 
 
+def card_currency(conn, account: str, line: dict) -> str | None:
+    """The currency of a statement line's `amount`: always the card's own currency. The line's `currencyCode`
+    is the currency of the purchase (its sum is `operationAmount`), so a € purchase on a ₴ card is still ₴ here.
+    A card not in the accounts yet falls back to the line's code; a card with no ₴ / € currency is skipped."""
+    row = conn.execute("SELECT currency FROM accounts WHERE mono_id = ?", (account,)).fetchone()
+    if row is None:
+        return CURRENCY_CODES.get(line.get("currencyCode"))
+    return row["currency"] if row["currency"] in CURRENCY_CODES.values() else None
+
+
 def import_lines(conn, account: str, lines: list[dict]) -> dict:
     """Save new statement lines. Returns counts: new, sorted, transfers, waiting, skipped."""
     counts = {"new": 0, "sorted": 0, "transfers": 0, "waiting": 0, "skipped": 0}
     for line in sorted(lines, key=lambda x: x["time"]):
-        currency = CURRENCY_CODES.get(line.get("currencyCode"))
-        signed = line.get("amount", 0)
+        currency = card_currency(conn, account, line)
+        signed = line.get("amount", 0)  # in the card's currency (not the purchase's)
         if currency is None or signed == 0:
             counts["skipped"] += 1
             continue

@@ -120,7 +120,7 @@ def test_analytics_has_two_tabs(client):
     page = client.get("/analytics").text
     assert 'data-tabs-key="analytics"' in page and 'data-open="where"' in page
     assert 'data-tab="where"' in page and 'data-tab="plan"' in page
-    assert page.count('data-panel="where"') == 2 and page.count('data-panel="plan"') == 2
+    assert page.count('data-panel="where"') == 1 and page.count('data-panel="plan"') == 1  # one view: all in ₴
     where = page.split('data-panel="where"')[1].split('data-panel="plan"')[0]
     assert "Where the money goes" in where and "Plan ↔ actual" not in where
     assert 'aria-label="Plan against reality"' in page.split('data-panel="plan"')[1]
@@ -135,3 +135,12 @@ def test_tab_script_keeps_the_address_the_memory_and_the_links(client):
     js = client.get("/static/app.js").text
     for needle in ('localStorage.getItem("tab:"', "data-carry-tab", "history.replaceState", "fitNumbers()"):
         assert needle in js
+
+
+def test_currency_switch_hides_where_everything_is_in_hryvnias(client):
+    css = client.get("/static/style.css").text
+    js = client.get("/static/app.js").text
+    assert 'html.js[data-tab="categories"] .cur-switch { display: none; }' in css  # Home → Categories
+    assert 'html[data-year-mode="actual"] .year-controls .seg-cur' in css  # Year → Actual / Difference
+    assert "document.documentElement.dataset.tab = name" in js
+    assert "data-cur-choice" not in client.get("/analytics").text  # Analytics: no switch at all

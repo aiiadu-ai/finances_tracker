@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db, monthly
+from app import db, fx, monthly
 from app.main import app
 
 
@@ -133,7 +133,7 @@ def test_home_shows_arc_and_words(client):
 
 def test_home_without_a_plan_points_to_the_year_plan(client):
     page = client.get("/?month=2026-11").text
-    assert "No ₴ plan for November 2026 yet" in page and "No € plan for November 2026 yet" in page and 'href="/year?year=2026"' in page
+    assert page.count("No plan for November 2026 yet") == 2 and 'href="/year?year=2026"' in page
 
 
 def view(page, code):
@@ -148,8 +148,12 @@ def test_home_has_a_separate_full_set_of_numbers_per_currency(client):
     spend("Food", 2500, "EUR")
     page = client.get("/?month=2026-11").text
     uah, eur = view(page, "UAH"), view(page, "EUR")
-    assert "₴" in uah and "€" not in uah
-    assert "€" in eur and "₴" not in eur
+    # Overview, jars and accounts: one currency each. Categories (and the half-circle): ₴ and € together, in ₴.
+    overview = lambda part: part.split('class="grid grid-4"')[1].split('data-panel="jars"')[0]  # Income, Expenses, In jars, Free
+    assert "₴" in overview(uah) and "€" not in overview(uah)
+    assert "€" in overview(eur) and "₴" not in overview(eur)
+    cats = lambda part: part.split('data-panel="categories"')[1].split('aria-label="Categories"')[1].split("</ul>")[0]
+    assert cats(uah) == cats(eur) and "₴" in cats(uah) and "€" not in cats(uah)
     for part in (uah, eur):
         for block in ("Income", "Expenses", "In jars", "Free", "left this month", "Essentials", "Food"):
             assert block in part
@@ -219,3 +223,35 @@ def test_old_budgets_move_into_the_plan_and_the_table_goes(tmp_path, monkeypatch
         got = {(r["month"], r["category_id"], r["currency"]): r["amount"] for r in conn.execute("SELECT * FROM plans")}
         assert got == {("2026-11", food, "UAH"): 700000, ("2026-11", coffee, "UAH"): 30000, ("2026-12", coffee, "EUR"): 2000}
     db.init_db()  # a second start changes nothing
+
+
+def test_categories_count_hryvnias_and_euros_together_at_the_nbu_rate(client):
+    """AI: 1 200 ₴ + 200 ₴ + 10 € (at 50 ₴) against a 3 000 ₴ plan and a 20 € plan (= 1 000 ₴)."""
+    with db.connection() as conn:
+        for key, value in (("nbu_rate", "5000"), ("nbu_rate_day", date.today().isoformat()), ("rate", "4000")):
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
+    set_limit("2026-11", "AI", "UAH", 300000)
+    set_limit("2026-11", "AI", "EUR", 2000)
+    spend("AI", 120000)
+    spend("AI", 20000)
+    spend("AI", 1000, "EUR")
+    with db.connection() as conn:
+        row = next(r for r in monthly.month_together(conn, date(2026, 11, 1), date(2026, 12, 1))["rows"] if r["name"] == "AI")
+    assert row["line"]["spent"] == 140000 + 50000 and row["line"]["limit"] == 300000 + 100000
+    assert row["line"]["currency"] == "UAH" and row["line"]["state"] == "ok"
+    page = client.get("/?month=2026-11").text
+    assert "All in ₴ · € at NBU rate 50" in page
+
+
+def test_without_a_fresh_nbu_rate_her_own_rate_is_used_and_without_any_euros_are_left_out(client):
+    spend("AI", 10000)
+    spend("AI", 1000, "EUR")
+    with db.connection() as conn:
+        assert fx.current_rate(conn) is None
+        assert monthly.spent_by_category(conn, date(2026, 11, 1), date(2026, 12, 1), fx.TOGETHER) == {cat("AI"): 10000}
+    with db.connection() as conn:
+        conn.execute("INSERT INTO meta (key, value) VALUES ('nbu_rate', '5000'), ('nbu_rate_day', '2026-01-01'), ('rate', '4000')")
+    with db.connection() as conn:
+        assert fx.current_rate(conn)["source"] == "your rate"  # the NBU one is too old
+        assert monthly.spent_by_category(conn, date(2026, 11, 1), date(2026, 12, 1), fx.TOGETHER) == {cat("AI"): 10000 + 40000}
+        assert monthly.spent_by_category(conn, date(2026, 11, 1), date(2026, 12, 1), "EUR") == {cat("AI"): 1000}

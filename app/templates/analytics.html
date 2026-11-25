@@ -48,12 +48,8 @@
       <a href="{{ month_href }}" {% if period == "month" %}aria-current="page"{% endif %}>Month</a>
       <a href="{{ year_href }}" {% if period == "year" %}aria-current="page"{% endif %}>Year</a>
     </div>
-    <div class="seg seg-cur" role="group" aria-label="Currency">
-      {% for view in views %}
-        <button type="button" data-cur-choice="{{ view.code }}" aria-pressed="false" aria-label="{{ 'Hryvnias' if view.code == 'UAH' else 'Euros' }}">{{ view.symbol }}</button>
-      {% endfor %}
-    </div>
   </div>
+  {% include "_fx_note.html" %}
 
   <nav class="tabs" aria-label="Analytics sections" data-open="where" data-tabs-key="analytics">
     <a href="#where" data-tab="where">Where the money goes</a>
@@ -65,7 +61,7 @@
     {% set code = view.code %}
     {% set prev_name = ("last month" if period == "month" else "last year") %}
     {% set running = d.dynamics.running %}
-    <div class="cur-view" data-cur="{{ code }}">
+    <div class="cur-view" data-cur="ALL">
       <div class="tab-panel" data-panel="where">
 
       {# ---- Forecast: only for the running month ---- #}
@@ -85,7 +81,7 @@
                   {% else %}✓ Within the plan{% endif %}
                 </p>
               {% else %}
-                <p class="muted fc-small">No {{ view.symbol }} plan yet · <a href="/year">Set the plan</a></p>
+                <p class="muted fc-small">No plan yet · <a href="/year">Set the plan</a></p>
               {% endif %}
             </div>
             <svg class="fc-chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="Spending so far this month, the forecast to the end of the month{% if f.budget %} and the limit{% endif %}">
@@ -139,7 +135,7 @@
             </div>
           {% endfor %}
         {% else %}
-          <p class="muted">No {{ view.symbol }} expenses in {{ label }} yet.</p>
+          <p class="muted">No expenses in {{ label }} yet.</p>
         {% endif %}
       </section>
 

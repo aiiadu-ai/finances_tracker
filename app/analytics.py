@@ -1,7 +1,8 @@
 """Analytics: where the money goes, how it changes, plan against reality, and a forecast.
 
-Only counting and chart geometry here; the page draws it. Money is whole kopiykas / cents and
-hryvnias and euros are never mixed or converted.
+Only counting and chart geometry here; the page draws it. Money is whole kopiykas / cents.
+`currency` is 'UAH', 'EUR' (that currency only) or fx.TOGETHER: everything in hryvnias, euros at the
+current rate (see app/fx.py). The page uses TOGETHER.
 """
 
 from calendar import monthrange
@@ -44,10 +45,10 @@ def compact(amount: int) -> str:
 def category_totals(conn, start: date, end: date, currency: str):
     return conn.execute(
         """
-        SELECT c.id, c.name, c."group" AS grp, SUM(t.amount) AS total
+        SELECT c.id, c.name, c."group" AS grp, SUM(pick(t.amount, t.currency, ?)) AS total
         FROM transactions t JOIN categories c ON c.id = t.category_id
-        WHERE t.kind = 'expense' AND t.currency = ? AND t.date >= ? AND t.date < ?
-        GROUP BY c.id ORDER BY total DESC, c.name
+        WHERE t.kind = 'expense' AND t.date >= ? AND t.date < ?
+        GROUP BY c.id HAVING total IS NOT NULL ORDER BY total DESC, c.name
         """,
         (currency, start.isoformat(), end.isoformat()),
     ).fetchall()
@@ -55,9 +56,9 @@ def category_totals(conn, start: date, end: date, currency: str):
 
 def kind_total(conn, kind: str, start: date, end: date, currency: str) -> int:
     return conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM transactions "
-        "WHERE kind = ? AND currency = ? AND date >= ? AND date < ?",
-        (kind, currency, start.isoformat(), end.isoformat()),
+        "SELECT COALESCE(SUM(pick(amount, currency, ?)), 0) FROM transactions "
+        "WHERE kind = ? AND date >= ? AND date < ?",
+        (currency, kind, start.isoformat(), end.isoformat()),
     ).fetchone()[0]
 
 
@@ -65,12 +66,12 @@ def monthly_actual(conn, kind: str, year: int, currency: str) -> list[int]:
     out = [0] * 12
     for row in conn.execute(
         """
-        SELECT CAST(strftime('%m', date) AS INTEGER) AS m, SUM(amount) AS total FROM transactions
-        WHERE kind = ? AND currency = ? AND date >= ? AND date < ? GROUP BY m
+        SELECT CAST(strftime('%m', date) AS INTEGER) AS m, SUM(pick(amount, currency, ?)) AS total FROM transactions
+        WHERE kind = ? AND date >= ? AND date < ? GROUP BY m
         """,
-        (kind, currency, f"{year}-01-01", f"{year + 1}-01-01"),
+        (currency, kind, f"{year}-01-01", f"{year + 1}-01-01"),
     ):
-        out[row["m"] - 1] = row["total"]
+        out[row["m"] - 1] = row["total"] or 0
     return out
 
 
@@ -78,13 +79,13 @@ def monthly_plan(conn, kind: str, year: int, currency: str) -> list[int]:
     out = [0] * 12
     for row in conn.execute(
         """
-        SELECT CAST(substr(p.month, 6, 2) AS INTEGER) AS m, SUM(p.amount) AS total
+        SELECT CAST(substr(p.month, 6, 2) AS INTEGER) AS m, SUM(pick(p.amount, p.currency, ?)) AS total
         FROM plans p JOIN categories c ON c.id = p.category_id
-        WHERE c.kind = ? AND p.currency = ? AND p.month >= ? AND p.month < ? GROUP BY m
+        WHERE c.kind = ? AND p.month >= ? AND p.month < ? GROUP BY m
         """,
-        (kind, currency, f"{year}-01", f"{year + 1}-01"),
+        (currency, kind, f"{year}-01", f"{year + 1}-01"),
     ):
-        out[row["m"] - 1] = row["total"]
+        out[row["m"] - 1] = row["total"] or 0
     return out
 
 
@@ -196,8 +197,8 @@ def daily_totals(conn, first: date, end: date, currency: str) -> dict[int, int]:
         row["d"]: row["total"]
         for row in conn.execute(
             """
-            SELECT CAST(strftime('%d', date) AS INTEGER) AS d, SUM(amount) AS total FROM transactions
-            WHERE kind = 'expense' AND currency = ? AND date >= ? AND date < ? GROUP BY d
+            SELECT CAST(strftime('%d', date) AS INTEGER) AS d, SUM(pick(amount, currency, ?)) AS total FROM transactions
+            WHERE kind = 'expense' AND date >= ? AND date < ? GROUP BY d HAVING total IS NOT NULL
             """,
             (currency, first.isoformat(), end.isoformat()),
         )
@@ -249,8 +250,8 @@ def forecast(conn, first: date, today: date, currency: str) -> dict:
     days_in_month = monthrange(first.year, first.month)[1]
     day = today.day
     end = today + timedelta(days=1)
-    limits = monthly.month_limits(conn, first.strftime("%Y-%m"))
-    limited = {cat for (cat, code) in limits if code == currency}
+    limits = monthly.limits_in(conn, first.strftime("%Y-%m"), currency)
+    limited = set(limits)
 
     def project(spent, grp):
         # An estimate: rounded to whole hryvnias / euros (kopiykas would only pretend to be exact).
@@ -268,7 +269,7 @@ def forecast(conn, first: date, today: date, currency: str) -> dict:
         if row["id"] in limited:
             projected_limited += project(row["total"], row["grp"])
 
-    limit = sum(v for (cat, code), v in limits.items() if code == currency)
+    limit = sum(limits.values())
     budget = None
     if limit:
         budget = {
