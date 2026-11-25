@@ -354,6 +354,7 @@ document.querySelectorAll(".wm").forEach((box) => {
   function show(name) {
     if (!links.some((l) => l.dataset.tab === name)) name = links[0].dataset.tab;
     panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    document.documentElement.dataset.tab = name; // Home → Categories is all in ₴: the ₴ / € switch goes there
     links.forEach((l) => l.setAttribute("aria-current", l.dataset.tab === name ? "page" : "false"));
     remember(name);
     if (key) carry(name);

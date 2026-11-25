@@ -135,3 +135,12 @@ def test_tab_script_keeps_the_address_the_memory_and_the_links(client):
     js = client.get("/static/app.js").text
     for needle in ('localStorage.getItem("tab:"', "data-carry-tab", "history.replaceState", "fitNumbers()"):
         assert needle in js
+
+
+def test_currency_switch_hides_where_everything_is_in_hryvnias(client):
+    css = client.get("/static/style.css").text
+    js = client.get("/static/app.js").text
+    assert 'html.js[data-tab="categories"] .cur-switch { display: none; }' in css  # Home → Categories
+    assert 'html[data-year-mode="actual"] .year-controls .seg-cur' in css  # Year → Actual / Difference
+    assert "document.documentElement.dataset.tab = name" in js
+    assert "data-cur-choice" not in client.get("/analytics").text  # Analytics: no switch at all
