@@ -326,6 +326,13 @@ html[data-cur="EUR"] .cur-view[data-cur="EUR"] { display: flex; }
 .arcs { display: grid; grid-template-columns: 1fr; gap: var(--space-4); }
 .arc-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); }
 .arc-empty { align-items: flex-start; gap: var(--space-3); }
+/* Home: the half-circle has two views, Plan and Reality. Without JavaScript both are shown, one under the other. */
+.spend { display: flex; flex-direction: column; gap: var(--space-3); }
+.spend-seg { display: none; align-self: center; }
+.js .spend-seg { display: inline-flex; }
+.js .spend[data-spend="plan"] [data-spend-view="reality"], .js .spend[data-spend="reality"] [data-spend-view="plan"] { display: none; }
+.reality-sum { text-align: center; font: 400 14px/20px var(--font-mono); font-variant-numeric: tabular-nums; }
+.reality-state { text-align: center; }
 .arc-spent { text-align: center; font: 500 12px/16px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); }
 .arc-wrap { position: relative; width: 100%; max-width: 560px; margin-inline: auto; }
 .arc { display: block; width: 100%; height: auto; overflow: visible; }

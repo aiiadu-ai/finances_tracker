@@ -159,3 +159,57 @@ def currency_view(summary: dict, code: str) -> dict:
         "arc": next((arc for arc in summary["arcs"] if arc["currency"] == code), None),
         "groups": [{**group, "line": pick(group["lines"])} for group in summary["groups"]],
     }
+
+
+def month_reality(conn, first, following) -> dict | None:
+    """Home → the half-circle, "Reality": the month's spending against a limit that grows with what came beyond the plan.
+
+    All in ₴ (euros at the current rate, see app/fx.py); the whole month, not per category.
+      spent = every expense of the month + "Sent to people"
+      extra = max(0, actual income − planned income) + "Received from people"
+      limit = planned expenses of the month + extra
+    None when there is no limit at all (no expense plan and nothing extra).
+    """
+    together, month = fx.TOGETHER, first.strftime("%Y-%m")
+    span = (first.isoformat(), following.isoformat())
+
+    def planned(kind):
+        return conn.execute(
+            "SELECT COALESCE(SUM(pick(p.amount, p.currency, ?)), 0) FROM plans p JOIN categories c ON c.id = p.category_id "
+            "WHERE p.month = ? AND c.kind = ?",
+            (together, month, kind),
+        ).fetchone()[0]
+
+    def actual(where, *args):
+        return conn.execute(
+            f"SELECT COALESCE(SUM(pick(amount, currency, ?)), 0) FROM transactions WHERE {where} AND date >= ? AND date < ?",
+            (together, *args, *span),
+        ).fetchone()[0]
+
+    plan_expense, plan_income = planned("expense"), planned("income")
+    expenses, income = actual("kind = 'expense'"), actual("kind = 'income'")
+    sent = actual("kind = 'transfer' AND counterpart = 'people' AND direction = ?", "out")
+    received = actual("kind = 'transfer' AND counterpart = 'people' AND direction = ?", "in")
+    over_income = max(0, income - plan_income)
+    extra = over_income + received
+    limit = plan_expense + extra
+    if not limit:
+        return None
+    spent = expenses + sent
+    return {
+        "currency": "UAH",
+        "spent": spent,
+        "expenses": expenses,
+        "sent": sent,
+        "plan": plan_expense,
+        "income": income,
+        "plan_income": plan_income,
+        "over_income": over_income,
+        "received": received,
+        "extra": extra,
+        "limit": limit,
+        "left": limit - spent,
+        "percent": percent(spent, limit),
+        "fill": min(100, percent(spent, limit)),
+        "state": state(spent, limit),
+    }

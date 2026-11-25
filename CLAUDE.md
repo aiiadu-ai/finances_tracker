@@ -134,6 +134,11 @@ Transportation · Sport · Tax · Other
 
 **Категорії в ₴ (2026-11-25):** Home → Categories (і півколо на Overview), уся Analytics (перемикача ₴/€ там нема) і Year у режимах **Actual / Difference** рахують ₴ і € разом, у гривнях: € (і €-плани) × курс. Year **Plan** — як і раніше по валютах (план вводиться у своїй валюті); в Actual / Difference €-таблиця й перемикач ховаються. Курс: **НБУ на сьогодні** — `monosync` (cron) раз на годину бере його з bank.gov.ua у `meta` (`nbu_rate` у копійках за €, `nbu_rate_day`, `nbu_rate_at`), сайт сам в інтернет не ходить; якщо курсу НБУ нема або він старший за 3 дні — курс Аії з Settings → Money; без жодного курсу € не рахуються. Під перемикачами підпис «All in ₴ · € at NBU rate …». Код: `app/fx.py` (SQL-функція `pick(amount, currency, wanted)`, `wanted` = `UAH` / `EUR` / `ALL`), `monthly.month_together`, `plans.grid(…, fx.TOGETHER)`. Бот `/month` не змінювався.
 
+**Півколо Plan | Reality (Home → Overview; 2026-11-25):** перемикач над півколом (запам'ятовується в браузері, `spendView`; без JS обидва підряд). Рівень лише всього місяця, усе в ₴ (€ за курсом, `app/fx.py`).
+- **Plan** (як було): витрати в категоріях із планом проти плану витрат місяця; решта — рядком «+ X spent in categories without a limit».
+- **Reality** (`monthly.month_reality`): `spent` = усі витрати місяця + «Sent to people»; `extra` = max(0, дохід − план доходу) + «Received from people»; `limit` = план витрат + `extra`. Показує Spent / Limit, скільки лишилось / перевищено, статус ✓ / ! / ✗ (як скрізь: ! від 80 %, ✗ понад ліміт) і рядок «+ X given beyond the plan: income over plan … · received from people …». Без плану доходу весь дохід іде в extra. Без жодного ліміту — «No plan … so there is no limit».
+- Смужки категорій не змінюються: вони за планом.
+
 ## Telegram-бот
 - Відповідає **тільки** chat id Аії з `.env`, усім іншим — мовчить.
 - Потік додавання: обираю тип (витрата / дохід / у банку) → **кнопка категорії** → пишу «що це»

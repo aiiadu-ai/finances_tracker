@@ -39,6 +39,39 @@
   </section>
 {% endmacro %}
 
+{# The half-circle, "Reality": spent against the plan plus what came beyond it (app/monthly.py, month_reality). #}
+{% macro reality_arc(r) %}
+  <section class="card arc-card" aria-label="Spent against the real limit">
+    <p class="arc-spent">spent {{ r.percent }}%</p>
+    <div class="arc-wrap">
+      <svg class="arc" viewBox="0 0 200 104" aria-hidden="true" focusable="false">
+        <path class="arc-track" d="M 8 100 A 92 92 0 0 1 192 100" pathLength="100"/>
+        {% if r.fill > 0 %}
+          <path class="arc-fill s-{{ r.state }}" d="M 8 100 A 92 92 0 0 1 192 100" pathLength="100" stroke-dasharray="{{ r.fill }} 100"/>
+        {% endif %}
+      </svg>
+      <div class="arc-center">
+        <p class="arc-left s-{{ r.state }}" data-fit>{{ (r.left if r.left >= 0 else -r.left)|money("UAH") }}</p>
+        <p class="arc-caption">{{ "over the real limit" if r.left < 0 else "left of the real limit" }}</p>
+      </div>
+    </div>
+    <p class="arc-ends"><span>0</span><span>{{ r.limit|money("UAH") }}</span></p>
+    <p class="reality-sum"><span>Spent <b>{{ r.spent|money("UAH") }}</b></span> <span class="muted">/</span> <span>Limit <b>{{ r.limit|money("UAH") }}</b></span></p>
+    <p class="cat-state s-{{ r.state }} reality-state">
+      {% if r.state == "over" %}✗ Over by {{ (-r.left)|money("UAH") }}
+      {% elif r.state == "close" %}! Close · {{ r.left|money("UAH") }} left
+      {% else %}✓ Within the limit · {{ r.left|money("UAH") }} left{% endif %}
+    </p>
+    {% if r.extra %}
+      <p class="arc-note">+ {{ r.extra|money("UAH") }} given beyond the plan:
+        {% if r.over_income %}income over plan {{ r.over_income|money("UAH") }}{% endif %}
+        {%- if r.over_income and r.received %} · {% endif %}
+        {%- if r.received %}received from people {{ r.received|money("UAH") }}{% endif %}</p>
+    {% endif %}
+    <p class="arc-note">Limit = planned spending {{ r.plan|money("UAH") }} + extra. Spent = all expenses{% if r.sent %} + sent to people {{ r.sent|money("UAH") }}{% endif %}.</p>
+  </section>
+{% endmacro %}
+
 {% block content %}
   <header class="month-nav" data-carry-tab>
     <a class="round-link" href="/?month={{ prev_month }}" aria-label="Previous month">{{ icon("back") }}</a>
@@ -84,15 +117,32 @@
       {% elif not start_set and loop.first %}
         <a class="card sort-card" href="/settings#money"><span>Set how much money you have now</span><span class="sort-go">Set {{ icon("next") }}</span></a>
       {% endif %}
-      <section class="budget" aria-label="Left this month">
-        {% if budget.arc %}
-          {{ arc(budget.arc) }}
-        {% else %}
-          <div class="card arc-card arc-empty">
-            <p class="muted">No plan for {{ month_label }} yet.</p>
-            <a class="btn btn-outline" href="/year?year={{ month[:4] }}">Set the plan</a>
-          </div>
-        {% endif %}
+      <section class="budget spend" aria-label="Left this month" data-spend="plan">
+        {# Plan: categories with a plan against that plan. Reality: everything spent against the plan + what came beyond it. #}
+        <div class="seg spend-seg" role="group" aria-label="Spend view">
+          <button type="button" data-spend-choice="plan" aria-pressed="true">Plan</button>
+          <button type="button" data-spend-choice="reality" aria-pressed="false">Reality</button>
+        </div>
+        <div class="spend-view" data-spend-view="plan">
+          {% if budget.arc %}
+            {{ arc(budget.arc) }}
+          {% else %}
+            <div class="card arc-card arc-empty">
+              <p class="muted">No plan for {{ month_label }} yet.</p>
+              <a class="btn btn-outline" href="/year?year={{ month[:4] }}">Set the plan</a>
+            </div>
+          {% endif %}
+        </div>
+        <div class="spend-view" data-spend-view="reality">
+          {% if reality %}
+            {{ reality_arc(reality) }}
+          {% else %}
+            <div class="card arc-card arc-empty">
+              <p class="muted">No plan for {{ month_label }} yet, so there is no limit.</p>
+              <a class="btn btn-outline" href="/year?year={{ month[:4] }}">Set the plan</a>
+            </div>
+          {% endif %}
+        </div>
       </section>
 
       {% if "balance" in hidden %}
