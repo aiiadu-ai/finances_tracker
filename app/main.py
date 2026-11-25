@@ -508,6 +508,7 @@ def home(request: Request, month: str = ""):
             (first.isoformat(), following.isoformat()),
         ).fetchall()
         budget = monthly.month_together(conn, first, following)  # categories: ₴ and € together, in ₴
+        reality = monthly.month_reality(conn, first, following)  # the half-circle's "Reality" view
         rate_used = fx.current_rate(conn)
         waiting = len(rules.unsorted(conn))
         people = transfers.people_flows(conn, first, following)
@@ -564,6 +565,7 @@ def home(request: Request, month: str = ""):
             "rate_text": amount_for_input(start["rate"]) if start and start["rate"] else "",
             "month": first.strftime("%Y-%m"),
             "fx_rate": rate_used,
+            "reality": reality,
         },
     )
 

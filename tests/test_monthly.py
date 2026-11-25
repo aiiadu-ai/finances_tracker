@@ -7,6 +7,10 @@ from app import db, fx, monthly
 from app.main import app
 
 
+def flat(text):
+    return text.replace("\u00a0", " ").replace("\u202f", " ")
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("FINANCE_DB", str(tmp_path / "data" / "test.db"))
@@ -133,7 +137,7 @@ def test_home_shows_arc_and_words(client):
 
 def test_home_without_a_plan_points_to_the_year_plan(client):
     page = client.get("/?month=2026-11").text
-    assert page.count("No plan for November 2026 yet") == 2 and 'href="/year?year=2026"' in page
+    assert page.count("No plan for November 2026 yet.") == 2 and page.count("so there is no limit") == 2 and 'href="/year?year=2026"' in page
 
 
 def view(page, code):
@@ -255,3 +259,73 @@ def test_without_a_fresh_nbu_rate_her_own_rate_is_used_and_without_any_euros_are
         assert fx.current_rate(conn)["source"] == "your rate"  # the NBU one is too old
         assert monthly.spent_by_category(conn, date(2026, 11, 1), date(2026, 12, 1), fx.TOGETHER) == {cat("AI"): 10000 + 40000}
         assert monthly.spent_by_category(conn, date(2026, 11, 1), date(2026, 12, 1), "EUR") == {cat("AI"): 1000}
+
+
+def income_cat(name="Salary"):
+    with db.connection() as conn:
+        return conn.execute("SELECT id FROM categories WHERE kind = 'income' AND name = ?", (name,)).fetchone()["id"]
+
+
+def earn(amount, day="2026-11-03"):
+    with db.connection() as conn:
+        conn.execute("INSERT INTO transactions (date, kind, category_id, amount, currency) VALUES (?, 'income', ?, ?, 'UAH')", (day, income_cat(), amount))
+
+
+def people(direction, amount, day="2026-11-07"):
+    with db.connection() as conn:
+        conn.execute(
+            "INSERT INTO transactions (date, kind, amount, currency, counterpart, direction) VALUES (?, 'transfer', ?, 'UAH', 'people', ?)",
+            (day, amount, direction),
+        )
+
+
+def reality():
+    with db.connection() as conn:
+        return monthly.month_reality(conn, date(2026, 11, 1), date(2026, 12, 1))
+
+
+def test_reality_without_extra_is_over_like_the_plan(client):
+    """Plan 20 000, spent 25 000, nothing beyond the plan: ✗ over by 5 000."""
+    set_limit("2026-11", "Food", "UAH", 2000000)
+    spend("Food", 2500000)
+    r = reality()
+    assert (r["spent"], r["limit"], r["extra"], r["left"], r["state"]) == (2500000, 2000000, 0, -500000, "over")
+    page = flat(client.get("/?month=2026-11").text)
+    assert "✗ Over by 5 000" in page
+
+
+def test_reality_extra_from_income_over_plan_and_people_lifts_the_limit(client):
+    """The same month with 5 000 extra (3 000 income over its plan + 2 000 from people): spent = limit, so not over."""
+    set_limit("2026-11", "Food", "UAH", 2000000)
+    with db.connection() as conn:
+        conn.execute("INSERT INTO plans (month, category_id, currency, amount) VALUES ('2026-11', ?, 'UAH', 1000000)", (income_cat(),))
+    spend("Food", 2500000)
+    earn(1300000)
+    people("in", 200000)
+    r = reality()
+    assert (r["over_income"], r["received"], r["extra"], r["limit"], r["left"]) == (300000, 200000, 500000, 2500000, 0)
+    assert r["state"] != "over"
+    page = flat(client.get("/?month=2026-11").text)
+    assert "+ 5 000 ₴ given beyond the plan" in page and "income over plan 3 000 ₴" in page and "received from people 2 000 ₴" in page
+    assert 'data-spend-choice="reality"' in page and 'data-spend-view="reality"' in page
+
+
+def test_reality_counts_all_spending_and_sent_to_people_and_income_under_plan_gives_nothing(client):
+    set_limit("2026-11", "Food", "UAH", 100000)
+    spend("Food", 50000)
+    spend("Coffee", 20000)  # no plan: still spent in Reality
+    people("out", 10000)
+    with db.connection() as conn:
+        conn.execute("INSERT INTO plans (month, category_id, currency, amount) VALUES ('2026-11', ?, 'UAH', 500000)", (income_cat(),))
+    earn(300000)  # under the income plan: no extra
+    r = reality()
+    assert (r["spent"], r["extra"], r["limit"], r["left"], r["state"]) == (80000, 0, 100000, 20000, "close")
+    with db.connection() as conn:  # the category bars stay on the plan
+        food = next(x for x in monthly.month_together(conn, date(2026, 11, 1), date(2026, 12, 1))["rows"] if x["name"] == "Food")
+    assert (food["line"]["spent"], food["line"]["limit"]) == (50000, 100000)
+
+
+def test_reality_needs_some_limit(client):
+    spend("Food", 50000)
+    assert reality() is None
+    assert "so there is no limit" in client.get("/?month=2026-11").text

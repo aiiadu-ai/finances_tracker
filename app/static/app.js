@@ -377,3 +377,22 @@ document.querySelectorAll(".wm").forEach((box) => {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(() => { /* not available here: the site still works */ });
 }
+
+// ---- Home: the half-circle, Plan or Reality (remembered in this browser) ----
+(function setupSpend() {
+  const boxes = document.querySelectorAll(".spend[data-spend]");
+  if (!boxes.length) return;
+  function show(mode) {
+    if (mode !== "reality") mode = "plan";
+    boxes.forEach((box) => { box.dataset.spend = mode; });
+    document.querySelectorAll("[data-spend-choice]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.spendChoice === mode)));
+    fitNumbers();
+  }
+  document.querySelectorAll("[data-spend-choice]").forEach((button) => button.addEventListener("click", () => {
+    show(button.dataset.spendChoice);
+    try { localStorage.setItem("spendView", button.dataset.spendChoice); } catch (e) { /* not remembered */ }
+  }));
+  let saved = null;
+  try { saved = localStorage.getItem("spendView"); } catch (e) { /* not remembered */ }
+  show(saved);
+})();
