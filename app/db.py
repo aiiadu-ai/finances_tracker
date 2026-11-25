@@ -6,6 +6,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import fx
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 INCOME_CATEGORIES = ["Salary", "Gifts", "Refunds", "Found money", "Extra income"]
@@ -188,6 +190,7 @@ def connection():
     conn = sqlite3.connect(db_path(), timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    fx.install(conn)  # SQL pick(amount, currency, wanted): one currency, or everything in ₴
     try:
         with conn:
             yield conn

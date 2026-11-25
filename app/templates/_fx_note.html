@@ -1,0 +1,5 @@
+{# Under the switches: the categories count hryvnias and euros together, in ₴ (app/fx.py). #}
+<p class="muted hint fx-note">
+  {%- if fx_rate %}All in ₴ · € at {{ "NBU rate" if fx_rate.source == "NBU" else "your rate" }} {{ fx_rate.value|money("UAH") }}
+  {%- else %}All in ₴ · euros are left out: no rate yet (<a href="/settings#money">Settings → Money</a>){% endif -%}
+</p>

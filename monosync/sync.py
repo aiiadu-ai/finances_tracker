@@ -15,7 +15,7 @@ from datetime import datetime
 
 import httpx
 
-from app import botlogic, db, mono, transfers
+from app import botlogic, db, fx, mono, transfers
 from app.env import load_env
 
 API = "https://api.monobank.ua"
@@ -212,6 +212,12 @@ def main() -> None:
             notify(client)
         except httpx.HTTPError as error:
             print(datetime.now().isoformat(timespec="seconds"), "Telegram problem:", error.__class__.__name__, flush=True)
+        try:  # the NBU euro rate for the categories in ₴ (app/fx.py); without it Settings → Money's rate is used
+            with db.connection() as conn:
+                if fx.refresh_nbu(conn, client, int(time.time())) and shown:
+                    log("NBU rate", fx.current_rate(conn))
+        except (httpx.HTTPError, ValueError, KeyError, StopIteration, TypeError) as error:
+            print(datetime.now().isoformat(timespec="seconds"), "NBU rate problem:", error.__class__.__name__, flush=True)
     if shown:
         with db.connection() as conn:
             waiting = conn.execute("SELECT COUNT(*) FROM inbox").fetchone()[0]

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import access, analytics, db, ui, jars, monthly, plans, rules, transfers, wealth
+from . import access, analytics, db, fx, ui, jars, monthly, plans, rules, transfers, wealth
 from . import mono as mono_module
 from .env import load_env
 
@@ -507,7 +507,8 @@ def home(request: Request, month: str = ""):
             """,
             (first.isoformat(), following.isoformat()),
         ).fetchall()
-        summary = monthly.month_summary(conn, first, following)
+        budget = monthly.month_together(conn, first, following)  # categories: ₴ and € together, in ₴
+        rate_used = fx.current_rate(conn)
         waiting = len(rules.unsorted(conn))
         people = transfers.people_flows(conn, first, following)
         start = wealth.get_start(conn)
@@ -523,7 +524,7 @@ def home(request: Request, month: str = ""):
         }
     totals = {(row["kind"], row["currency"]): row["total"] for row in sums}
     # One full set of numbers per currency; the switch on the page shows one of them.
-    # Hryvnias and euros are never added together or converted.
+    # Only the plan by category (and its half-circle) is the same in both: everything in ₴ (app/fx.py).
     views = []
     for code in monthly.CURRENCIES:
         sent, received = people[code]["sent"], people[code]["received"]
@@ -545,7 +546,7 @@ def home(request: Request, month: str = ""):
                 "accounts": accounts_now[code],
                 "jars": [j for j in all_jars if j["currency"] == code],
                 "recent": recent[code],
-                "budget": monthly.currency_view(summary, code),
+                "budget": budget,
             }
         )
     return templates.TemplateResponse(
@@ -562,6 +563,7 @@ def home(request: Request, month: str = ""):
             "standing_day": standing["cutoff"],
             "rate_text": amount_for_input(start["rate"]) if start and start["rate"] else "",
             "month": first.strftime("%Y-%m"),
+            "fx_rate": rate_used,
         },
     )
 
@@ -739,10 +741,13 @@ def render_year(
         "next_year": year + 1 if year < 2099 else None,
         "month_names": MONTH_NAMES,
         "now_month": today.month if year == today.year else None,  # the month to scroll to and mark
+        # Plan: per currency (that is what is edited). Actual / Difference: everything in ₴ (euros at the current rate).
         "views": [
             {"code": code, "symbol": CURRENCY_SYMBOLS[code], "grid": plans.grid(conn, year, code, today, categories), "left": left[code] if left else None}
             for code in plans.CURRENCIES
         ],
+        "together": plans.grid(conn, year, fx.TOGETHER, today, categories),
+        "fx_rate": fx.current_rate(conn),
         "cell_key": cell_key,
         "values": values,
         "errors": errors or {},
@@ -839,10 +844,9 @@ def analytics_page(request: Request, period: str = "month", month: str = "", yea
         in_year = today.replace(day=1) if selected.year == today.year else date(selected.year, 12, 1)
         month_href = f"/analytics?month={in_year:%Y-%m}"
     with db.connection() as conn:
-        views = [
-            {"code": code, "symbol": CURRENCY_SYMBOLS[code], "data": analytics.build(conn, period, selected, today, code)}
-            for code in analytics.CURRENCIES
-        ]
+        # One view: hryvnias and euros together, in ₴ (euros at the current rate, app/fx.py).
+        views = [{"code": "UAH", "symbol": CURRENCY_SYMBOLS["UAH"], "data": analytics.build(conn, period, selected, today, fx.TOGETHER)}]
+        rate_used = fx.current_rate(conn)
     return templates.TemplateResponse(
         request,
         "analytics.html",
@@ -856,6 +860,7 @@ def analytics_page(request: Request, period: str = "month", month: str = "", yea
             "views": views,
             "month_names": MONTH_NAMES,
             "selected_year": selected.year,
+            "fx_rate": rate_used,
         },
     )
 

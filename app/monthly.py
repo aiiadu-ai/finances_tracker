@@ -2,8 +2,11 @@
 
 The limit of a category for a month IS its planned amount from the year plan (table `plans`); there is no separate budget.
 
-Money is whole kopiykas / cents. Hryvnias and euros are never added together or converted.
+Money is whole kopiykas / cents. `month_summary` keeps hryvnias and euros apart; `month_together` (what Home
+shows) counts everything in hryvnias, euros at the current rate (see app/fx.py).
 """
+
+from . import fx
 
 CURRENCIES = ("UAH", "EUR")
 GROUP_LABELS = {"essentials": "Essentials", "fixed": "Fixed", "fun": "Fun"}
@@ -35,18 +38,48 @@ def month_limits(conn, month: str) -> dict:
     return {(row["category_id"], row["currency"]): row["amount"] for row in rows}
 
 
-def month_summary(conn, first, following) -> dict:
-    """Everything Home needs about the month's plan [first, following)."""
-    limits = month_limits(conn, first.strftime("%Y-%m"))
-    spent_rows = conn.execute(
+def limits_in(conn, month: str, currency: str) -> dict:
+    """{category_id: planned amount} of the expense categories for one month, in one currency or all in ₴ (fx.TOGETHER)."""
+    rows = conn.execute(
         """
-        SELECT category_id, currency, SUM(amount) AS total FROM transactions
-        WHERE kind = 'expense' AND date >= ? AND date < ?
-        GROUP BY category_id, currency
+        SELECT p.category_id, SUM(pick(p.amount, p.currency, ?)) AS total FROM plans p JOIN categories c ON c.id = p.category_id
+        WHERE p.month = ? AND c.kind = 'expense' GROUP BY p.category_id HAVING total
         """,
-        (first.isoformat(), following.isoformat()),
+        (currency, month),
     ).fetchall()
-    spent = {(row["category_id"], row["currency"]): row["total"] for row in spent_rows}
+    return {row["category_id"]: row["total"] for row in rows}
+
+
+def spent_by_category(conn, first, following, currency: str) -> dict:
+    """{category_id: spent} in the month, in one currency or all in ₴ (fx.TOGETHER)."""
+    rows = conn.execute(
+        """
+        SELECT category_id, SUM(pick(amount, currency, ?)) AS total FROM transactions
+        WHERE kind = 'expense' AND date >= ? AND date < ? GROUP BY category_id HAVING total
+        """,
+        (currency, first.isoformat(), following.isoformat()),
+    ).fetchall()
+    return {row["category_id"]: row["total"] for row in rows}
+
+
+def month_summary(conn, first, following) -> dict:
+    """Everything Home needs about the month's plan [first, following), per currency."""
+    limits, spent = {}, {}
+    for code in CURRENCIES:
+        limits.update({(cat, code): v for cat, v in limits_in(conn, first.strftime("%Y-%m"), code).items()})
+        spent.update({(cat, code): v for cat, v in spent_by_category(conn, first, following, code).items()})
+    return _summary(conn, limits, spent, CURRENCIES)
+
+
+def month_together(conn, first, following) -> dict:
+    """The month's plan by category with hryvnias and euros together, in ₴ (euros at the current rate)."""
+    limits = {(cat, "UAH"): v for cat, v in limits_in(conn, first.strftime("%Y-%m"), fx.TOGETHER).items()}
+    spent = {(cat, "UAH"): v for cat, v in spent_by_category(conn, first, following, fx.TOGETHER).items()}
+    return currency_view(_summary(conn, limits, spent, ("UAH",)), "UAH")
+
+
+def _summary(conn, limits: dict, spent: dict, codes) -> dict:
+    """Rows, half-circles and group tiles from {(category_id, currency): amount} of the plan and of the spending."""
 
     # Archived categories stay visible only if they have money in this month.
     used = {cat for cat, _ in spent} | {cat for cat, _ in limits}
@@ -65,7 +98,7 @@ def month_summary(conn, first, following) -> dict:
     rows = []
     for cat in categories:
         lines = []
-        for code in CURRENCIES:
+        for code in codes:
             s, limit = spent.get((cat["id"], code), 0), limits.get((cat["id"], code))
             if s or limit:
                 line = {"currency": code, "spent": s, "limit": limit}
@@ -80,7 +113,7 @@ def month_summary(conn, first, following) -> dict:
 
     # The half-circle: the plan against what was spent in categories that have a limit.
     arcs = []
-    for code in CURRENCIES:
+    for code in codes:
         total_limit = sum(v for (_, c), v in limits.items() if c == code)
         if not total_limit:
             continue
@@ -104,7 +137,7 @@ def month_summary(conn, first, following) -> dict:
     for key, label in GROUP_LABELS.items():
         members = [row["id"] for row in rows if row["grp"] == key]
         lines = []
-        for code in CURRENCIES:
+        for code in codes:
             s = sum(spent.get((cat, code), 0) for cat in members)
             limit = sum(limits.get((cat, code), 0) for cat in members)
             if s or limit:

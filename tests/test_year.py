@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db, plans
+from app import db, fx, plans
 from app.main import app, cell_key
 
 
@@ -223,3 +223,60 @@ def test_the_grid_has_fixed_columns_and_names_that_can_be_cut(client):
 def test_script_scrolls_to_the_current_month(client):
     js = client.get("/static/app.js").text
     assert "scrollYearToNow" in js and "th.yr-now" in js
+
+
+def set_rate(value="5000", day=None):
+    with db.connection() as conn:
+        for key, text in (("nbu_rate", value), ("nbu_rate_day", (day or date.today()).isoformat())):
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, text))
+
+
+def test_together_grid_counts_euros_in_hryvnias_for_actual_and_difference(client):
+    set_rate("5000")
+    plan("2026-03", "AI", "UAH", 300000)
+    plan("2026-03", "AI", "EUR", 2000)  # 20 € = 1 000 ₴
+    tx("2026-03-10", "AI", 140000)
+    tx("2026-03-11", "AI", 1000, "EUR")  # 10 € = 500 ₴
+    together = row(grid(fx.TOGETHER), "AI")["cells"][2]
+    assert together["actual"] == 140000 + 50000 and together["plan"] == 400000
+    assert (together["diff"], together["state"]) == (400000 - 190000, "ok")
+    assert row(grid("UAH"), "AI")["cells"][2]["actual"] == 140000  # the per-currency grid is unchanged
+    assert row(grid("EUR"), "AI")["cells"][2]["actual"] == 1000
+
+
+def test_year_page_shows_together_numbers_in_the_hryvnia_table(client):
+    set_rate("5000")
+    tx(f"{date.today().year}-01-10", "AI", 140000)
+    tx(f"{date.today().year}-01-11", "AI", 1000, "EUR")
+    page = client.get("/year").text
+    uah = page.split('class="cur-view" data-cur="UAH"')[1].split('class="cur-view"')[0]
+    assert "1 900" in uah.replace("\u00a0", " ").replace("\u202f", " ")  # 1 400 ₴ + 10 € at 50
+    assert 'class="yr-fx"' in page and "All in ₴ · € at NBU rate" in page
+
+
+def test_nbu_answer_is_read_and_kept_for_an_hour():
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    calls = []
+
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return [{"r030": 978, "cc": "EUR", "rate": 49.606, "exchangedate": "25.11.2026"}]
+
+    class Client:
+        def get(self, url, timeout):
+            calls.append(url)
+            return Answer()
+
+    assert fx.refresh_nbu(conn, Client(), 1_000_000) is True
+    assert fx.refresh_nbu(conn, Client(), 1_000_000 + 600) is False  # not again within the hour
+    assert len(calls) == 1
+    got = fx.current_rate(conn, today=date(2026, 11, 26))
+    assert got == {"value": 4961, "source": "NBU", "day": date(2026, 11, 25)}
+    assert fx.current_rate(conn, today=date(2026, 12, 1)) is None  # too old, and no own rate
+    assert fx.to_uah(1000, "EUR", 4961) == 49610 and fx.to_uah(1000, "UAH", None) == 1000 and fx.to_uah(1000, "EUR", None) is None

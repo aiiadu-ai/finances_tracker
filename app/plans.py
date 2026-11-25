@@ -1,6 +1,7 @@
 """The year plan against reality. No web code here, just counting.
 
-Money is whole kopiykas / cents; hryvnias and euros are never mixed or converted.
+Money is whole kopiykas / cents. A grid is for one currency ('UAH' / 'EUR': what the plan is edited in) or
+fx.TOGETHER: everything in hryvnias, euros at the current rate (the Actual and Difference views).
 """
 
 from datetime import date
@@ -71,16 +72,25 @@ def _cell(kind, plan, actual, future):
 
 
 def grid(conn, year: int, currency: str, today: date, categories=None) -> dict:
-    """Rows (a category with 12 monthly cells and a year total) and total rows, for one currency."""
+    """Rows (a category with 12 monthly cells and a year total) and total rows, for one currency (or fx.TOGETHER)."""
     categories = categories if categories is not None else year_categories(conn, year)
-    plan = {(cat, m): v for (cat, m, code), v in month_plans(conn, year).items() if code == currency}
+    plan = {
+        (r["category_id"], r["m"]): r["total"]
+        for r in conn.execute(
+            """
+            SELECT category_id, CAST(substr(month, 6, 2) AS INTEGER) AS m, SUM(pick(amount, currency, ?)) AS total
+            FROM plans WHERE month >= ? AND month < ? GROUP BY category_id, m HAVING total
+            """,
+            (currency, f"{year}-01", f"{year + 1}-01"),
+        )
+    }
     actual = {}
     for r in conn.execute(
         """
-        SELECT category_id, CAST(strftime('%m', date) AS INTEGER) AS m, SUM(amount) AS total
+        SELECT category_id, CAST(strftime('%m', date) AS INTEGER) AS m, SUM(pick(amount, currency, ?)) AS total
         FROM transactions
-        WHERE kind IN ('income', 'expense') AND currency = ? AND date >= ? AND date < ?
-        GROUP BY category_id, m
+        WHERE kind IN ('income', 'expense') AND date >= ? AND date < ?
+        GROUP BY category_id, m HAVING total IS NOT NULL
         """,
         (currency, f"{year}-01-01", f"{year + 1}-01-01"),
     ):

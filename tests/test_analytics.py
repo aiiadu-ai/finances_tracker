@@ -179,12 +179,13 @@ def test_forecast_only_for_the_running_month(client):
     assert run(analytics.build, "year", date(2026, 1, 1), TODAY, "UAH")["forecast"] is None
 
 
-def test_page_renders_both_currencies_and_all_sections(client, monkeypatch):
+def test_page_renders_one_view_in_hryvnias_and_all_sections(client, monkeypatch):
     monkeypatch.setattr(ui, "HIDDEN_BLOCKS", frozenset())  # bring every hidden block back for this test
     today = date.today()
     tx(f"{today:%Y-%m}-01", "Food", 12300)
     page = client.get("/analytics").text
-    assert page.count('class="cur-view"') == 2
+    assert page.count('class="cur-view"') == 1 and 'data-cur="ALL"' in page and "data-cur-choice" not in page
+    assert "All in ₴" in page
     for text in ("Where the money goes", "Forecast to the end of the month", "Plan ↔ actual", "Expenses by month", "Income by month"):
         assert text in page
     assert "Fixed counted as is" in page and "Jan" in page and "data-wm-group" in page

@@ -120,7 +120,7 @@ def test_analytics_has_two_tabs(client):
     page = client.get("/analytics").text
     assert 'data-tabs-key="analytics"' in page and 'data-open="where"' in page
     assert 'data-tab="where"' in page and 'data-tab="plan"' in page
-    assert page.count('data-panel="where"') == 2 and page.count('data-panel="plan"') == 2
+    assert page.count('data-panel="where"') == 1 and page.count('data-panel="plan"') == 1  # one view: all in ₴
     where = page.split('data-panel="where"')[1].split('data-panel="plan"')[0]
     assert "Where the money goes" in where and "Plan ↔ actual" not in where
     assert 'aria-label="Plan against reality"' in page.split('data-panel="plan"')[1]

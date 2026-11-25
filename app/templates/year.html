@@ -16,10 +16,11 @@
     {%- if c.together is not none and c.together != c.value %}<span class="c-sub" title="Everything together in ₴, euros at your rate">≈{{ (c.together|floor100)|plain }} ₴</span>{% endif %}{% endif -%}
 {%- endmacro %}
 
-{% macro read_cell(c) %}
+{# `c`: the cell of the plan's own currency; `t`: the same cell with ₴ and € together (Actual / Difference). #}
+{% macro read_cell(c, t) %}
   <span class="c-plan">{{ c.plan|plain }}</span>
-  <span class="c-actual">{{ (c.actual or None)|plain }}</span>
-  {{ diff_cell(c) }}
+  <span class="c-actual">{{ (t.actual or None)|plain }}</span>
+  {{ diff_cell(t) }}
 {% endmacro %}
 
 {% block content %}
@@ -65,6 +66,7 @@
       {% endfor %}
     </div>
     <a class="btn btn-outline" href="/analytics?period=year&year={{ year }}">Analytics</a>
+    <div class="yr-fx">{% include "_fx_note.html" %}</div>
     {% if not confirm %}
       <form class="year-copy" method="post" action="/year/copy">
         <input type="hidden" name="year" value="{{ year }}">
@@ -78,6 +80,8 @@
     <div class="yr" data-mode="plan">
       {% for view in views %}
         {% set grid = view.grid %}
+        {# Actual / Difference are shown in ₴ only, with euros counted in (the € table is hidden in those views). #}
+        {% set real = together if view.code == "UAH" else grid %}
         <div class="cur-view" data-cur="{{ view.code }}">
           <div class="yr-scroll">
             <table class="yr-table">
@@ -97,6 +101,7 @@
               </thead>
               <tbody>
                 {% for row in grid.rows %}
+                  {% set real_row = real.rows[loop.index0] %}
                   {% if loop.first or loop.previtem.kind != row.kind %}
                     <tr class="yr-sep"><th scope="rowgroup" class="yr-name">{{ "Expenses" if row.kind == "expense" else "Income" }}</th><td colspan="14"></td></tr>
                   {% endif %}
@@ -104,26 +109,28 @@
                     <th scope="row" class="yr-name"><span class="yr-tag {% if row.grp %}g-{{ row.grp }}{% endif %}" title="{{ row.name }}">{{ row.name }}</span></th>
                     <td class="yr-fill"><input class="cell-input" type="text" inputmode="decimal" autocomplete="off" data-fill placeholder="all" aria-label="{{ row.name }}: one plan amount for all months"></td>
                     {% for c in row.cells %}
+                      {% set t = real_row.cells[loop.index0] %}
                       {% set key = cell_key(row.id, loop.index, view.code) %}
                       <td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">
                         <input class="cell-input c-plan" type="text" inputmode="decimal" autocomplete="off"
                                name="{{ key }}" value="{{ values.get(key, '') }}" placeholder="—"
                                aria-label="{{ row.name }}, {{ month_names[loop.index0] }}, plan in {{ view.symbol }}"
                                {% if key in errors %}aria-invalid="true"{% endif %}>
-                        <span class="c-actual">{{ (c.actual or None)|plain }}</span>
-                        {{ diff_cell(c) }}
+                        <span class="c-actual">{{ (t.actual or None)|plain }}</span>
+                        {{ diff_cell(t) }}
                       </td>
                     {% endfor %}
-                    <td class="yr-total">{{ read_cell(row.total) }}</td>
+                    <td class="yr-total">{{ read_cell(row.total, real_row.total) }}</td>
                   </tr>
                 {% endfor %}
                 {% for label, key in [("Income", "income"), ("Expenses", "expense"), ("Balance", "balance")] %}
                   {% set t = grid.totals[key] %}
+                  {% set rt = real.totals[key] %}
                   <tr class="yr-sum {% if loop.first %}yr-sum-first{% endif %}">
                     <th scope="row" class="yr-name">{{ label }}</th>
                     <td class="yr-fill"></td>
-                    {% for c in t.cells %}<td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">{{ read_cell(c) }}</td>{% endfor %}
-                    <td class="yr-total">{{ read_cell(t.total) }}</td>
+                    {% for c in t.cells %}<td class="yr-cell{% if loop.index == now_month %} yr-now{% endif %}">{{ read_cell(c, rt.cells[loop.index0]) }}</td>{% endfor %}
+                    <td class="yr-total">{{ read_cell(t.total, rt.total) }}</td>
                   </tr>
                 {% endfor %}
                 {% if view.left %}
@@ -153,7 +160,8 @@
     <p class="muted yr-legend">
       Difference: ✓ on plan · ! within 20% of the plan · ✗ over the plan (expenses) or short of it (income).
       Months that have not come yet show no difference; unplanned spending counts in the totals. “Year” compares the plan
-      up to this month with what has happened so far.
+      up to this month with what has happened so far. Actual and Difference count hryvnias and euros together, in ₴
+      (euros, and euro plans, at the rate shown above); the plan is edited per currency.
     </p>
     <div class="muted yr-legend">
       {% if views[0].left %}

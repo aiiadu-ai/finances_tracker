@@ -234,6 +234,7 @@ function setupYear() {
   const buttons = document.querySelectorAll("[data-mode-choice]");
   function setMode(mode) {
     grid.dataset.mode = mode;
+    document.documentElement.dataset.yearMode = mode; // Actual / Difference: ₴ only, so the ₴ / € switch goes
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.modeChoice === mode)));
     fitNumbers();
     if (window.scrollYearToNow) window.scrollYearToNow(); // the columns moved (the "All months" column comes and goes)
