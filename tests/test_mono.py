@@ -72,6 +72,20 @@ def test_euro_kept_and_other_currencies_skipped(conn):
     assert inbox(conn)[0]["currency"] == "EUR"
 
 
+def test_amount_is_in_the_cards_currency_not_the_purchases(conn):
+    """Monobank: `amount` is in the card's currency, `currencyCode` is the purchase's. A € purchase on a ₴ card is ₴."""
+    transfers.ensure_mono_account(conn, "UAH_CARD", "Mono ₴", "UAH")
+    transfers.ensure_mono_account(conn, "EUR_CARD", "Mono €", "EUR")
+    transfers.ensure_mono_account(conn, "USD_CARD", "Mono $")  # the bank gave no ₴ / € currency
+    paddle = {**line(1, -120000, "SOME.SHOP* ONLINE", cur=978), "operationAmount": -3200}
+    shop = {**line(2, -900, "Shop in USD", cur=840), "operationAmount": -1000}
+    assert mono.import_lines(conn, "UAH_CARD", [paddle])["new"] == 1
+    assert mono.import_lines(conn, "EUR_CARD", [shop])["new"] == 1
+    assert mono.import_lines(conn, "USD_CARD", [line(3, -500, cur=980)])["skipped"] == 1
+    got = [(r["external_id"], r["amount"], r["currency"]) for r in inbox(conn)]
+    assert got == [("UAH_CARD:s1", 120000, "UAH"), ("EUR_CARD:s2", 900, "EUR")]
+
+
 # ---------- Rules ----------
 def test_rule_sorts_new_lines_straight_into_transactions(conn):
     rules.save_rule(conn, "SILPO", cat(conn, "Food"))
@@ -108,8 +122,8 @@ def test_transfer_rules_to_people_and_to_an_account(conn):
 
 # ---------- Transfers between her own cards ----------
 def test_same_amount_between_two_cards_is_a_transfer_into_the_receiving_account(conn):
-    a = transfers.ensure_mono_account(conn, "A", "Mono black")
-    b = transfers.ensure_mono_account(conn, "B", "Mono white")
+    a = transfers.ensure_mono_account(conn, "A", "Mono black", "UAH")
+    b = transfers.ensure_mono_account(conn, "B", "Mono white", "UAH")
     mono.import_lines(conn, "A", [line(1, -300000, "To card", at=T0)])
     counts = mono.import_lines(conn, "B", [line(2, 300000, "From card", at=T0 + 20)])
     assert counts["transfers"] == 1 and inbox(conn) == []
@@ -163,7 +177,7 @@ def test_people_transfers_are_expenses_and_income_and_move_free(conn, monkeypatc
 
 
 def test_accounts_transfer_needs_a_real_account_and_income_side_uses_its_own_card(conn):
-    card = transfers.ensure_mono_account(conn, "A", "Mono black")
+    card = transfers.ensure_mono_account(conn, "A", "Mono black", "UAH")
     cash = conn.execute("INSERT INTO accounts (name) VALUES ('Cash')").lastrowid
     gone = conn.execute("INSERT INTO accounts (name, archived) VALUES ('Old', 1)").lastrowid
     mono.import_lines(conn, "A", [line(1, -10000, "Out"), line(2, 20000, "In")])
