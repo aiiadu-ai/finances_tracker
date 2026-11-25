@@ -136,7 +136,7 @@ Transportation · Sport · Tax · Other
 
 **Півколо Plan | Reality (Home → Overview; 2026-11-25):** перемикач над півколом (запам'ятовується в браузері, `spendView`; без JS обидва підряд). Рівень лише всього місяця, усе в ₴ (€ за курсом, `app/fx.py`).
 - **Plan** (як було): витрати в категоріях із планом проти плану витрат місяця; решта — рядком «+ X spent in categories without a limit».
-- **Reality** (`monthly.month_reality`): `spent` = усі витрати місяця + «Sent to people»; `extra` = max(0, дохід − план доходу) + «Received from people»; `limit` = план витрат + `extra`. Показує Spent / Limit, скільки лишилось / перевищено, статус ✓ / ! / ✗ (як скрізь: ! від 80 %, ✗ понад ліміт) і рядок «+ X given beyond the plan: income over plan … · received from people …». Без плану доходу весь дохід іде в extra. Без жодного ліміту — «No plan … so there is no limit».
+- **Reality** (`monthly.month_reality`): `spent` = усі витрати місяця + «Sent to people»; `extra` = max(0, дохід − план доходу) + «Received from people»; `limit` = план витрат + `extra`. Показує Spent / Limit, скільки лишилось / перевищено, статус ✓ / ! / ✗ (як скрізь: ! від 80 %, ✗ понад ліміт) і рядок «+ X beyond the plan» (лише сума extra, без розбивки й без пояснення формули — так хоче Аія). Без плану доходу весь дохід іде в extra. Без жодного ліміту — «No plan … so there is no limit».
 - Смужки категорій не змінюються: вони за планом.
 
 ## Telegram-бот

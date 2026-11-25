@@ -63,12 +63,8 @@
       {% else %}✓ Within the limit · {{ r.left|money("UAH") }} left{% endif %}
     </p>
     {% if r.extra %}
-      <p class="arc-note">+ {{ r.extra|money("UAH") }} given beyond the plan:
-        {% if r.over_income %}income over plan {{ r.over_income|money("UAH") }}{% endif %}
-        {%- if r.over_income and r.received %} · {% endif %}
-        {%- if r.received %}received from people {{ r.received|money("UAH") }}{% endif %}</p>
+      <p class="arc-note">+ {{ r.extra|money("UAH") }} beyond the plan</p>
     {% endif %}
-    <p class="arc-note">Limit = planned spending {{ r.plan|money("UAH") }} + extra. Spent = all expenses{% if r.sent %} + sent to people {{ r.sent|money("UAH") }}{% endif %}.</p>
   </section>
 {% endmacro %}
 

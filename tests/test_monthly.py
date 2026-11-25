@@ -306,7 +306,7 @@ def test_reality_extra_from_income_over_plan_and_people_lifts_the_limit(client):
     assert (r["over_income"], r["received"], r["extra"], r["limit"], r["left"]) == (300000, 200000, 500000, 2500000, 0)
     assert r["state"] != "over"
     page = flat(client.get("/?month=2026-11").text)
-    assert "+ 5 000 ₴ given beyond the plan" in page and "income over plan 3 000 ₴" in page and "received from people 2 000 ₴" in page
+    assert "+ 5 000 ₴ beyond the plan" in page and "income over plan" not in page and "Limit = planned" not in page
     assert 'data-spend-choice="reality"' in page and 'data-spend-view="reality"' in page
 
 
